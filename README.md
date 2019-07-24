@@ -1,0 +1,1 @@
+Tools (scripts) for easy synchronisze a git depot with a sharelatex project
