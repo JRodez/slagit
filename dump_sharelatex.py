@@ -27,7 +27,7 @@ def init_client():
 
 
 def browse_project(client,login_data, project_id, path='.'):
-    r = client.post(LOGIN_URL, data=login_data, verify=False)
+    r = client.post(LOGIN_URL, data=login_data, verify=True)
     project_url= "{base}/project/{pid}".format(base=BASE_URL,
                                                 pid=project_id)
     r = client.get(project_url)
@@ -36,8 +36,7 @@ def download_project(client,login_data,project_id, path='.'):
     zip_url = "{base}/project/{pid}/download/zip".format(base=BASE_URL,
                                                          pid=project_id)
 
-    r = client.post(LOGIN_URL, data=login_data, verify=False)
-    sharelatex_sid=r.cookies['sharelatex.sid']
+    r = client.post(LOGIN_URL, data=login_data, verify=True)
     r = client.get(zip_url, stream=True)
 
     print("Downloading")
@@ -52,7 +51,7 @@ def download_project(client,login_data,project_id, path='.'):
     zip_file.extractall(path)
     zip_file.close()
 
-
+# pip install socketIO-client==0.5.7.4
 from socketIO_client import SocketIO, BaseNamespace
 def get_project_data(client,login_data, sharelatex_sid, project_id):
     project_URL="{base}/project/{pid}".format(base=BASE_URL,
