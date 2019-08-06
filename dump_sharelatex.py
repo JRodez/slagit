@@ -5,6 +5,7 @@ import os
 import requests
 from pathlib import Path
 import threading
+import uuid
 import zipfile
 
 
@@ -14,6 +15,7 @@ from socketIO_client import SocketIO, BaseNamespace
 BASE_URL = "https://sharelatex.irisa.fr"
 LOGIN_URL = "{}/login".format(BASE_URL)
 print("email: ")
+
 EMAIL = input()
 PASSWORD = getpass.getpass()
 
@@ -151,6 +153,22 @@ class SyncClient:
         return r
 
 
+    def upload(self, project_id, folder_id, path):
+        url = f"{self.base_url}/project/{project_id}/upload"
+        filename = os.path.basename(path)
+        # TODO(msimonin): handle correctly the content-type
+        files = {"qqfile": (filename, open(path, "rb"), "image/png")}
+        params = {
+            "folder_id": folder_id,
+            "_csrf": self.csrf,
+            "qquid": str(uuid.uuid4()),
+            "qqfilename": filename,
+            "qqtotalfilesize": os.path.getsize(path)
+        }
+        r = self.client.post(url, params=params, files=files, verify=self.verify)
+        return r
+
+
 
 
 
@@ -158,12 +176,17 @@ class SyncClient:
 
 project_id='5d385b6f1693055a45f6e876'
 
+
 client = SyncClient(username=EMAIL,
                     password=PASSWORD,
                     verify=False)
 
 r = client.get_project_data(project_id)
 print(r)
-client.download_project(project_id, path=project_id)
+# client.download_project(project_id, path=project_id)
+#
+#  rr = client.get_file(project_id, "5d385b6f1693055a45f6e879")
+folder_id = "5d385b6f1693055a45f6e875"
+filepath = "/home/msimonin/Téléchargements/1-scale.png"
 
-rr = client.get_file(project_id, "5d385b6f1693055a45f6e879")
+r = client.upload(project_id, folder_id, filepath)
