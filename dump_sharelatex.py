@@ -48,13 +48,14 @@ class SyncClient:
         self.client = requests.session()
         # Retrieve the CSRF token first
         r = self.client.get(LOGIN_URL, verify=True)
-        csrftoken = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
+        self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
 
         # login
         self.login_data = {"email": EMAIL,
                            "password": PASSWORD,
-                           "_csrf":csrftoken}
+                           "_csrf": self.csrf}
         _r = self.client.post(LOGIN_URL, data=self.login_data, verify=self.verify)
+        self.login_data.pop("password")
         self.sharelatex_sid = _r.cookies["sharelatex.sid"]
 
 
