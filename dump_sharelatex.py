@@ -14,7 +14,6 @@ import yaml
 
 
 BASE_URL = "https://sharelatex.irisa.fr"
-LOGIN_URL = "{}/login".format(BASE_URL)
 
 def browse_project(client,login_data, project_id, path='.'):
     """NOTE(msimonin): je me rappelle pas ce que c'est censé faire."""
@@ -44,8 +43,10 @@ class SyncClient:
 
         # build the client and login
         self.client = requests.session()
+        login_url = "{}/login".format(self.base_url)
+
         # Retrieve the CSRF token first
-        r = self.client.get(LOGIN_URL, verify=True)
+        r = self.client.get(login_url, verify=True)
         self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
 
         # login
@@ -53,8 +54,8 @@ class SyncClient:
                            "password": password,
                            "_csrf": self.csrf}
 
-        login_url = "{}/login".format(self.base_url)
         _r = self.client.post(login_url, data=self.login_data, verify=self.verify)
+        _r.raise_for_status()
         self.login_data.pop("password")
         self.sharelatex_sid = _r.cookies["sharelatex.sid"]
 
@@ -78,6 +79,7 @@ class SyncClient:
         """
 
         url = f"{self.base_url}/project/{project_id}"
+
         # use thread local storage to pass the project data
         storage = threading.local()
         class Namespace(BaseNamespace):
@@ -176,8 +178,11 @@ class SyncClient:
 
 # TEST of get project info
 
-project_id='5d385b6f1693055a45f6e876'
+# prod
+# project_id='5d385b6f1693055a45f6e876'
 
+# qualif
+project_id = "5d3882c4f6d5800ecde22c5a"
 
 client = SyncClient.from_yaml()
 
