@@ -219,16 +219,3 @@ class SyncClient:
 
         r = self.client.post(url, data=data, verify=self.verify)
         return r
-
-# TEST of get project info
-
-# prod
-# project_id='5d385b6f1693055a45f6e876'
-
-# qualif
-project_id = "5d3882c4f6d5800ecde22c5a"
-
-client = SyncClient.from_yaml()
-
-for i in range(10):
-    client.create_folder(project_id, "5d4a90fd3ad458309b39d78b", f"hello_from_python-{i}")
