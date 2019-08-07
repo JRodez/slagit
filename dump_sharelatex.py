@@ -10,15 +10,11 @@ import zipfile
 
 
 from socketIO_client import SocketIO, BaseNamespace
+import yaml
 
 
 BASE_URL = "https://sharelatex.irisa.fr"
 LOGIN_URL = "{}/login".format(BASE_URL)
-print("email: ")
-
-EMAIL = input()
-PASSWORD = getpass.getpass()
-
 
 def browse_project(client,login_data, project_id, path='.'):
     """NOTE(msimonin): je me rappelle pas ce que c'est censé faire."""
@@ -53,12 +49,22 @@ class SyncClient:
         self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
 
         # login
-        self.login_data = {"email": EMAIL,
-                           "password": PASSWORD,
+        self.login_data = {"email": username,
+                           "password": password,
                            "_csrf": self.csrf}
-        _r = self.client.post(LOGIN_URL, data=self.login_data, verify=self.verify)
+
+        login_url = "{}/login".format(self.base_url)
+        _r = self.client.post(login_url, data=self.login_data, verify=self.verify)
         self.login_data.pop("password")
         self.sharelatex_sid = _r.cookies["sharelatex.sid"]
+
+    @classmethod
+    def from_yaml(cls, *, filepath=None):
+        if not filepath:
+            filepath = Path(os.environ.get("HOME"), ".sync_sharelatex.yaml")
+        with open(filepath, "r") as f:
+            conf = yaml.load(f)
+            return cls(**conf)
 
 
     def get_project_data(self, project_id):
@@ -168,24 +174,18 @@ class SyncClient:
         r = self.client.post(url, params=params, files=files, verify=self.verify)
         return r
 
-
-
-
-
 # TEST of get project info
 
 project_id='5d385b6f1693055a45f6e876'
 
 
-client = SyncClient(username=EMAIL,
-                    password=PASSWORD,
-                    verify=False)
+client = SyncClient.from_yaml()
 
 r = client.get_project_data(project_id)
 print(r)
-# client.download_project(project_id, path=project_id)
+client.download_project(project_id, path=project_id)
 #
-#  rr = client.get_file(project_id, "5d385b6f1693055a45f6e879")
+rr = client.get_file(project_id, "5d385b6f1693055a45f6e879")
 folder_id = "5d385b6f1693055a45f6e875"
 filepath = "/home/msimonin/Téléchargements/1-scale.png"
 
