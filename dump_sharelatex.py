@@ -116,6 +116,32 @@ class SyncClient:
 
         return storage.project_data
 
+    def get_project_iter(self, project_id):
+        """Returns a iterator on the files of a project."""
+
+        def _walk_project_tree(current, parent):
+            for c in current:
+                if c["name"] == "rootFolder":
+                    folder_name = ""
+                else:
+                    folder_name = c["name"]
+                folder_path = os.path.join(parent, folder_name)
+                fd = {"folder_id": c["_id"],
+                      "folder_path": folder_path}
+                for f in c["fileRefs"]:
+                    fd.update(f)
+                    yield fd
+                for d in c["docs"]:
+                    fd.update(d)
+                    yield fd
+                if len(c["folders"]) > 0:
+                    yield from _walk_project_tree(c["folders"],
+                                                  folder_path)
+
+        project_data = self.get_project_data(project_id)
+        current = project_data["rootFolder"]
+        return _walk_project_tree(current, "/")
+
     def download_project(self, project_id, path='.'):
         """Download and unzip the project.
 
@@ -160,6 +186,13 @@ class SyncClient:
         # TODO(msimonin): return type
         return r
 
+    def get_document(self, project_id, doc_id):
+        url = f"{self.base_url}/project/{project_id}/document/{doc_id}"
+        r = self.client.get(url, data=self.login_data, verify=self.verify)
+
+        # TODO(msimonin): return type
+        return r
+
 
     def upload(self, project_id, folder_id, path):
         url = f"{self.base_url}/project/{project_id}/upload"
@@ -176,6 +209,17 @@ class SyncClient:
         r = self.client.post(url, params=params, files=files, verify=self.verify)
         return r
 
+    def create_folder(self, project_id, parent_folder, name):
+        url = f"{self.base_url}/project/{project_id}/folder"
+        data = {
+            "parent_folder_id": parent_folder,
+            "_csrf": self.csrf,
+            "name": name
+        }
+
+        r = self.client.post(url, data=data, verify=self.verify)
+        return r
+
 # TEST of get project info
 
 # prod
@@ -186,12 +230,5 @@ project_id = "5d3882c4f6d5800ecde22c5a"
 
 client = SyncClient.from_yaml()
 
-r = client.get_project_data(project_id)
-print(r)
-client.download_project(project_id, path=project_id)
-#
-rr = client.get_file(project_id, "5d385b6f1693055a45f6e879")
-folder_id = "5d385b6f1693055a45f6e875"
-filepath = "/home/msimonin/Téléchargements/1-scale.png"
-
-r = client.upload(project_id, folder_id, filepath)
+for i in range(10):
+    client.create_folder(project_id, "5d4a90fd3ad458309b39d78b", f"hello_from_python-{i}")
