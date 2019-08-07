@@ -23,6 +23,22 @@ def browse_project(client,login_data, project_id, path='.'):
     r = client.get(project_url)
 
 
+_api_lock = threading.Lock()
+# Keep track of the api client (singleton)
+_api_client = None
+
+def get_client():
+    """Gets the reference to the API cient (singleton)."""
+    with _api_lock:
+        global _api_client
+        if not _api_client:
+            conf_file = os.path.join(os.environ.get("HOME"), ".sharelatex.yaml")
+            _api_client = SyncClient.from_yaml(filepath=conf_file)
+
+        return _api_client
+
+
+
 class SyncClient:
 
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
