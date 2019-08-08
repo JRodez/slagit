@@ -9,9 +9,11 @@ from git import Repo
 
 logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
+SYNC_BRANCH = "__remote__sharelatex__"
 
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 @click.group()
 def cli():
@@ -39,6 +41,10 @@ def init(project_id):
     git = repo.git
     git.add(".")
     git.commit("-m 'resync'")
+
+    #  We keep track of this remote version in a dedicated branch
+    sync_branch = repo.create_head(SYNC_BRANCH)
+    sync_branch.commit = "HEAD"
 
 
 @cli.command(help="Push the commited changes back to sharelatex")

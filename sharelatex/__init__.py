@@ -127,19 +127,19 @@ class SyncClient:
 
         class Namespace(BaseNamespace):
             def on_connect(self):
-                print("[Connected] Yeah !!")
+                logger.debug("[Connected] Yeah !!")
 
             def on_reconnect(self):
-                print("[Reconnected] re-Yeah !!")
+                logger.debug("[Reconnected] re-Yeah !!")
 
             def on_disconnect(self):
-                print("[Disconnected]  snif!  ")
+                logger.debug("[Disconnected]  snif!  ")
 
         def on_joint_project(*args):
             storage.project_data = args[1]
 
         def on_connection_rejected(*args):
-            print("[connectionRejected]  oh !!!")
+            logger.debug("[connectionRejected]  oh !!!")
 
         with SocketIO(
             self.base_url,
@@ -150,7 +150,7 @@ class SyncClient:
         ) as socketIO:
 
             def on_connection_accepted(*args):
-                print("[connectionAccepted]  Waoh !!!")
+                logger.debug("[connectionAccepted]  Waoh !!!")
                 socketIO.emit(
                     "joinProject", {"project_id": project_id}, on_joint_project
                 )
@@ -180,7 +180,7 @@ class SyncClient:
         url = f"{self.base_url}/project/{project_id}/download/zip"
         r = self.client.get(url, stream=True)
 
-        print("Downloading")
+        logger.info(f"Downloading {project_id} in {path}")
         target_dir = Path(path)
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = Path(target_dir, f"{project_id}.zip")
@@ -189,7 +189,7 @@ class SyncClient:
                 if chunk:
                     f.write(chunk)
 
-        print("Unzipping ....")
+        logger.info(f"Unzipping {project_id} in {path}")
         with zipfile.ZipFile(target_path) as zip_file:
             zip_file.extractall(path=path)
 
