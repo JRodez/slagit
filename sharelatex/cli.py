@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
 
 
+logging.basicConfig(level=logging.DEBUG)
+
 @click.group()
 def cli():
     pass
@@ -64,7 +66,7 @@ def push():
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated
     iter = walk_project_data(project_data)
-    for i in tqdm(list(iter), desc="Uploading files to sharelatex"):
+    for i in iter:
         # the / at the beginnning of i["folder_path"] makes the join to forget
         # about the working dir
         # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])

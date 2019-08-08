@@ -237,6 +237,7 @@ class SyncClient:
             "qqtotalfilesize": os.path.getsize(path),
         }
         r = self.client.post(url, params=params, files=files, verify=self.verify)
+        # TODO(msimonin): handle error
         return r
 
     def create_folder(self, project_id, parent_folder, name):
