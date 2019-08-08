@@ -1,10 +1,19 @@
 Pull/Push sharelatex project from/to GIT
 
+Installation
+------------
+
+
+:: code:: bash
+
+    # in the future ?
+    pip install sharelatex
+
 
 Configuration
 -------------
 
-::
+:: code:: bash
 
     echo '
     username: MYLOGIN
@@ -18,9 +27,9 @@ Example
 
 .. code:: bash
 
-   mkdir test
-   cd test
-   # download all files of a remote project
-   git slatex init <project_id>
-   # edit your files
-   git slatex push
+    mkdir test
+    cd test
+    # download all files of a remote project
+    git slatex init <project_id>
+    # edit your files
+    git slatex push
