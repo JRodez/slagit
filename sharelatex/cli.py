@@ -6,7 +6,6 @@ from sharelatex import get_client, walk_project_data
 
 import click
 from git import Repo
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
@@ -46,7 +45,7 @@ def init(project_id):
 def push():
     client = get_client()
     repo = Repo()
-    # Check if the repo is clean
+    # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         print(repo.git.status())
         print("The repository isn't clean")

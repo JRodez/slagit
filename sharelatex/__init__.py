@@ -237,7 +237,9 @@ class SyncClient:
             "qqtotalfilesize": os.path.getsize(path),
         }
         r = self.client.post(url, params=params, files=files, verify=self.verify)
-        # TODO(msimonin): handle error
+        response = r.json()
+        if not response["success"]:
+            raise Exception(f"Uploading {path} fails")
         return r
 
     def create_folder(self, project_id, parent_folder, name):
@@ -245,4 +247,5 @@ class SyncClient:
         data = {"parent_folder_id": parent_folder, "_csrf": self.csrf, "name": name}
 
         r = self.client.post(url, data=data, verify=self.verify)
+        r.raise_for_status()
         return r
