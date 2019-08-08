@@ -1,9 +1,8 @@
 Pull/Push sharelatex project from/to GIT
 
 
-The code is currently under development.
-In the current version we assume the project structure is stable between the
-remote and local environment (no creation/deletion of files)
+The code is currently experimental and under development.
+Use it with caution.
 
 
 Installation
