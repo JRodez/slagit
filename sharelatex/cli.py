@@ -6,6 +6,7 @@ from sharelatex import get_client, walk_project_data
 
 import click
 from git import Repo
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
@@ -63,7 +64,7 @@ def push():
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated
     iter = walk_project_data(project_data)
-    for i in iter:
+    for i in tqdm(list(iter), desc="Uploading files to sharelatex"):
         # the / at the beginnning of i["folder_path"] makes the join to forget
         # about the working dir
         # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])
