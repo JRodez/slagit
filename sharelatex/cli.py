@@ -26,6 +26,8 @@ def init(project_id):
     client.download_project(project_id)
 
     # quick way to get the repo resync the repo
+    # issue: when we already are in a git repo (by mistake)
+    # this will commit everything on top
     repo = Repo.init()
     git = repo.git
     git.add(".")
@@ -35,9 +37,16 @@ def init(project_id):
 @cli.command(help="Push the commited changes back to sharelatex")
 def push():
     client = get_client()
-    # reload .sharelatex
     repo = Repo()
+    # Check if the repo is clean
+    if repo.is_dirty(index=True,
+                     working_tree=True,
+                     untracked_files=True):
+        print(repo.git.status())
+        print("The repository isn't clean")
+        return
     tree = repo.tree()
+    # reload .sharelatex
     # TODO(msimonin): handle errors
     #   - non existent
     #   - non readable...
