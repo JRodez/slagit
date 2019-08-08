@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from sharelatex import get_client, walk_project_data
@@ -6,17 +7,21 @@ from sharelatex import get_client, walk_project_data
 import click
 from git import Repo
 
-
+logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
+
 
 @click.group()
 def cli():
     pass
 
-@cli.command(help="""
+
+@cli.command(
+    help="""
 Create a git repository or update an existing one from a sharelatex project
 (Note this use the current directory)
-""")
+"""
+)
 @click.argument("project_id")
 def init(project_id):
     client = get_client()
@@ -39,9 +44,7 @@ def push():
     client = get_client()
     repo = Repo()
     # Check if the repo is clean
-    if repo.is_dirty(index=True,
-                     working_tree=True,
-                     untracked_files=True):
+    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         print(repo.git.status())
         print("The repository isn't clean")
         return
