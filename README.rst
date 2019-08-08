@@ -4,7 +4,7 @@ Installation
 ------------
 
 
-:: code:: bash
+.. code:: bash
 
     # in the future ?
     pip install sharelatex
@@ -13,7 +13,7 @@ Installation
 Configuration
 -------------
 
-:: code:: bash
+.. code:: bash
 
     echo '
     username: MYLOGIN
