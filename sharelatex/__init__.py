@@ -9,6 +9,7 @@ import uuid
 import zipfile
 
 
+import filetype
 from socketIO_client import SocketIO, BaseNamespace
 import yaml
 
@@ -38,6 +39,33 @@ def get_client():
         return _api_client
 
 
+def walk_project_data(project_data):
+    def _walk_project_data(current, parent):
+        """Iterate on the project structure (files)
+
+        Args:
+            current (dict): current folder representation
+            parent (str): path of the parent folder
+        """
+        for c in current:
+            if c["name"] == "rootFolder":
+                folder_name = ""
+            else:
+                folder_name = c["name"]
+            folder_path = os.path.join(parent, folder_name)
+            fd = {"folder_id": c["_id"],
+                    "folder_path": folder_path}
+            for f in c["fileRefs"]:
+                fd.update(f)
+                yield fd
+            for d in c["docs"]:
+                fd.update(d)
+                yield fd
+            if len(c["folders"]) > 0:
+                yield from _walk_project_data(c["folders"],
+                                                folder_path)
+
+    return _walk_project_data(project_data["rootFolder"], "/")
 
 class SyncClient:
 
@@ -80,7 +108,7 @@ class SyncClient:
         if not filepath:
             filepath = Path(os.environ.get("HOME"), ".sync_sharelatex.yaml")
         with open(filepath, "r") as f:
-            conf = yaml.load(f)
+            conf = yaml.load(f, Loader=yaml.BaseLoader)
             return cls(**conf)
 
 
@@ -129,36 +157,17 @@ class SyncClient:
             socketIO.on('connectionAccepted', on_connection_accepted)
             socketIO.on('connectionRejected', on_connection_rejected)
             socketIO.wait(seconds=3)
-
+        # NOTE(msimonin): Check return type
+        # thuis must be a valid dict (eg not None)
         return storage.project_data
 
     def get_project_iter(self, project_id):
         """Returns a iterator on the files of a project."""
 
-        def _walk_project_tree(current, parent):
-            for c in current:
-                if c["name"] == "rootFolder":
-                    folder_name = ""
-                else:
-                    folder_name = c["name"]
-                folder_path = os.path.join(parent, folder_name)
-                fd = {"folder_id": c["_id"],
-                      "folder_path": folder_path}
-                for f in c["fileRefs"]:
-                    fd.update(f)
-                    yield fd
-                for d in c["docs"]:
-                    fd.update(d)
-                    yield fd
-                if len(c["folders"]) > 0:
-                    yield from _walk_project_tree(c["folders"],
-                                                  folder_path)
-
         project_data = self.get_project_data(project_id)
-        current = project_data["rootFolder"]
-        return _walk_project_tree(current, "/")
+        return walk_project_data(current)
 
-    def download_project(self, project_id, path='.'):
+    def download_project(self, project_id, *, path='.', keep_zip=False):
         """Download and unzip the project.
 
         Beware that this will overwrite any existing project file under path.
@@ -182,6 +191,9 @@ class SyncClient:
         print("Unzipping ....")
         with zipfile.ZipFile(target_path) as zip_file:
             zip_file.extractall(path=path)
+
+        if not keep_zip:
+            target_path.unlink()
 
     def get_doc(self, project_id,  doc_id):
         """TODO(msimonin): the route is currently private on the server side
@@ -214,7 +226,10 @@ class SyncClient:
         url = f"{self.base_url}/project/{project_id}/upload"
         filename = os.path.basename(path)
         # TODO(msimonin): handle correctly the content-type
-        files = {"qqfile": (filename, open(path, "rb"), "image/png")}
+        mime = filetype.guess(path)
+        if not mime:
+            mime = "text/plain"
+        files = {"qqfile": (filename, open(path, "rb"), mime)}
         params = {
             "folder_id": folder_id,
             "_csrf": self.csrf,
