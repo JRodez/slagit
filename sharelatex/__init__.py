@@ -42,7 +42,7 @@ def get_client():
         return _api_client
 
 
-def walk_project_data(project_data):
+def walk_project_data(project_data, predicate=lambda x: True):
     def _walk_project_data(current, parent):
         """Iterate on the project structure (files)
 
@@ -56,17 +56,35 @@ def walk_project_data(project_data):
             else:
                 folder_name = c["name"]
             folder_path = os.path.join(parent, folder_name)
-            fd = {"folder_id": c["_id"], "folder_path": folder_path}
+            fd = {
+                "folder_id": c["_id"],
+                "folder_path": folder_path,
+                "name": folder_name,
+            }
+            fd.update(type="folder")
+            if predicate(fd):
+                yield fd
             for f in c["fileRefs"]:
                 fd.update(f)
-                yield fd
+                fd.update(type="file")
+                if predicate(fd):
+                    yield fd
             for d in c["docs"]:
                 fd.update(d)
-                yield fd
+                fd.update(type="file")
+                if predicate(fd):
+                    yield fd
             if len(c["folders"]) > 0:
                 yield from _walk_project_data(c["folders"], folder_path)
 
     return _walk_project_data(project_data["rootFolder"], "/")
+
+
+def lookup_folder(metadata, folder_path):
+    folders = walk_project_data(
+        metadata, predicate=lambda x: x["folder_path"] == folder_path
+    )
+    return next(folders)
 
 
 class SyncClient:
@@ -136,7 +154,6 @@ class SyncClient:
                 logger.debug("[Disconnected]  snif!  ")
 
         def on_joint_project(*args):
-            import ipdb; ipdb.set_trace()
             storage.project_data = args[1]
 
         def on_connection_rejected(*args):
@@ -167,7 +184,7 @@ class SyncClient:
         """Returns a iterator on the files of a project."""
 
         project_data = self.get_project_data(project_id)
-        return walk_project_data(current)
+        return walk_project_data(current, lambda x: x["type"] == "file")
 
     def download_project(self, project_id, *, path=".", keep_zip=False):
         """Download and unzip the project.
@@ -238,6 +255,7 @@ class SyncClient:
             "qqtotalfilesize": os.path.getsize(path),
         }
         r = self.client.post(url, params=params, files=files, verify=self.verify)
+        r.raise_for_status()
         response = r.json()
         if not response["success"]:
             raise Exception(f"Uploading {path} fails")
@@ -246,10 +264,38 @@ class SyncClient:
     def create_folder(self, project_id, parent_folder, name):
         url = f"{self.base_url}/project/{project_id}/folder"
         data = {"parent_folder_id": parent_folder, "_csrf": self.csrf, "name": name}
-
+        logger.debug(data)
         r = self.client.post(url, data=data, verify=self.verify)
         r.raise_for_status()
-        return r
+        response = r.json()
+        return response
+
+    def check_or_create_folder(self, metadata, folder_path):
+        """Check if a given folder exists on sharelatex side.
+
+        Create it recursively if needed and return its id.
+        It looks in the metadata and create the missing directories.
+        Make sure the metadata are up-to-date when calling this.
+
+        Args:
+            metadata (dict): the sharelatex metadata as a structure basis
+            folder_path (str): the folder path
+
+        Returns:
+            The folder id
+        """
+        try:
+            folder = lookup_folder(metadata, folder_path)
+            return folder["folder_id"]
+        except:
+            logger.debug(f"{folder_path} not found, creation planed")
+
+        parent_folder = os.path.dirname(folder_path)
+        parent_id = self.check_or_create_folder(metadata, os.path.dirname(folder_path))
+        new_folder = self.create_folder(
+            metadata["_id"], parent_id, os.path.basename(folder_path)
+        )
+        return new_folder["_id"]
 
     def upload(self, path):
         url = f"{self.base_url}/project/new/upload"
@@ -260,9 +306,10 @@ class SyncClient:
             "_csrf": self.csrf,
             "qquid": str(uuid.uuid4()),
             "qqfilename": filename,
-            "qqtotalfilesize": os.path.getsize(path)
+            "qqtotalfilesize": os.path.getsize(path),
         }
         r = self.client.post(url, params=params, files=files, verify=self.verify)
+        r.raise_for_status()
         response = r.json()
         if not response["success"]:
             raise Exception(f"Uploading {path} fails")

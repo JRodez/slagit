@@ -46,7 +46,6 @@ def pull(project_id):
         f.write(json.dumps(project_data, indent=4))
     client.download_project(project_id)
 
-
     git = repo.git
     git.add(".")
     git.commit("-m 'resync'")
