@@ -136,6 +136,7 @@ class SyncClient:
                 logger.debug("[Disconnected]  snif!  ")
 
         def on_joint_project(*args):
+            import ipdb; ipdb.set_trace()
             storage.project_data = args[1]
 
         def on_connection_rejected(*args):
@@ -221,7 +222,7 @@ class SyncClient:
         # TODO(msimonin): return type
         return r
 
-    def upload(self, project_id, folder_id, path):
+    def upload_file(self, project_id, folder_id, path):
         url = f"{self.base_url}/project/{project_id}/upload"
         filename = os.path.basename(path)
         # TODO(msimonin): handle correctly the content-type
@@ -240,7 +241,7 @@ class SyncClient:
         response = r.json()
         if not response["success"]:
             raise Exception(f"Uploading {path} fails")
-        return r
+        return response
 
     def create_folder(self, project_id, parent_folder, name):
         url = f"{self.base_url}/project/{project_id}/folder"
@@ -249,3 +250,20 @@ class SyncClient:
         r = self.client.post(url, data=data, verify=self.verify)
         r.raise_for_status()
         return r
+
+    def upload(self, path):
+        url = f"{self.base_url}/project/new/upload"
+        filename = os.path.basename(path)
+        mime = "application/zip"
+        files = {"qqfile": (filename, open(path, "rb"), mime)}
+        params = {
+            "_csrf": self.csrf,
+            "qquid": str(uuid.uuid4()),
+            "qqfilename": filename,
+            "qqtotalfilesize": os.path.getsize(path)
+        }
+        r = self.client.post(url, params=params, files=files, verify=self.verify)
+        response = r.json()
+        if not response["success"]:
+            raise Exception(f"Uploading {path} fails")
+        return response

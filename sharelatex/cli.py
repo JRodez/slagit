@@ -1,11 +1,12 @@
 import json
 import logging
-import os
+import time
 
 from sharelatex import get_client, walk_project_data
 
 import click
 from git import Repo
+from zipfile import ZipFile
 
 logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
@@ -22,22 +23,30 @@ def cli():
 
 @cli.command(
     help="""
-Create a git repository or update an existing one from a sharelatex project
-(Note this use the current directory)
+Pull the files from sharelatex.
+(Note this uses the current directory)
 """
 )
 @click.argument("project_id")
-def init(project_id):
+def pull(project_id):
     client = get_client()
-    project_data = client.get_project_data(project_id)
-    with open(SHARELATEX_FILE, "w") as f:
-        f.write(json.dumps(project_data, indent=4))
-    client.download_project(project_id)
 
     # quick way to get the repo resync the repo
     # issue: when we already are in a git repo (by mistake)
     # this will commit everything on top
     repo = Repo.init()
+    # Fail if the repo is clean
+    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
+        print(repo.git.status())
+        print("The repository isn't clean")
+        return
+
+    project_data = client.get_project_data(project_id)
+    with open(SHARELATEX_FILE, "w") as f:
+        f.write(json.dumps(project_data, indent=4))
+    client.download_project(project_id)
+
+
     git = repo.git
     git.add(".")
     git.commit("-m 'resync'")
@@ -61,6 +70,7 @@ def push():
     # TODO(msimonin): handle errors
     #   - non existent
     #   - non readable...
+    # TODO(msimonin): take the git tree instead of reloading the .sharelatex
     sharelatex_file = list(tree.traverse(lambda i, d: i.path == SHARELATEX_FILE))[0]
     with open(sharelatex_file.abspath, "r") as f:
         project_data = json.load(f)
@@ -76,4 +86,21 @@ def push():
         # about the working dir
         # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])
         path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
-        client.upload(project_id, i["folder_id"], path)
+        client.upload_file(project_id, i["folder_id"], path)
+
+
+@cli.command(help="Upload the current directory as a new sharelatex project")
+@click.argument("name")
+def upload(name):
+    # check if we're on a git repo
+    client = get_client()
+    repo = Repo()
+    iter_file = repo.tree().traverse()
+    archive_name = "%s.zip" % name
+    with ZipFile(archive_name, "w") as z:
+        for f in iter_file:
+            z.write(f.path)
+
+    response = client.upload(archive_name)
+    print("Successfully uploaded %s [%s]" % (name, response["project_id"]))
+    client.get_project_data(response["project_id"])
