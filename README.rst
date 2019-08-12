@@ -36,8 +36,8 @@ Configuration
 Example
 -------
 
-Simple Workflow
-~~~~~~~~~~~~~~~
+Get an existing project on slatex
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: bash
 
@@ -76,3 +76,11 @@ need to manually handle the case.
     # resolve the conflicts and
     # Push back your change to sharelatex
     git slatex push
+
+
+Create a remote project from a local git
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code:: bash
+   git slatex upload <name>
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
