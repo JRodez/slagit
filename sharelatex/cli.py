@@ -46,7 +46,7 @@ def pull(project_id):
         f.write(json.dumps(project_data, indent=4))
     client.download_project(project_id)
 
-
+    # TODO(msimonin): add a decent default .gitignore ?
     git = repo.git
     git.add(".")
     git.commit("-m 'resync'")
@@ -103,4 +103,19 @@ def upload(name):
 
     response = client.upload(archive_name)
     print("Successfully uploaded %s [%s]" % (name, response["project_id"]))
-    client.get_project_data(response["project_id"])
+
+
+    # TODO(msimonin): the following is starting to feel like the init
+    # there's an opportunity to factorize both
+    project_data = client.get_project_data(response["project_id"])
+    with open(SHARELATEX_FILE, "w") as f:
+        f.write(json.dumps(project_data, indent=4))
+
+    git = repo.git
+    git.add(".")
+    git.commit("-m 'resync'")
+
+
+    #  We keep track of this remote version in a dedicated branch
+    sync_branch = repo.create_head(SYNC_BRANCH)
+    sync_branch.commit = "HEAD"
