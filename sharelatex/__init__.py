@@ -86,6 +86,9 @@ def lookup_folder(metadata, folder_path):
     )
     return next(folders)
 
+def walk_files(project_data):
+    return walk_project_data(project_data, lambda x: x["type"] == "file")
+
 
 class SyncClient:
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):

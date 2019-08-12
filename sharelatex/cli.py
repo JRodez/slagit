@@ -2,7 +2,7 @@ import json
 import logging
 import time
 
-from sharelatex import get_client, walk_project_data
+from sharelatex import get_client, walk_files
 
 import click
 from git import Repo
@@ -80,7 +80,7 @@ def push():
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated
-    iter = walk_project_data(project_data, lambda x: x["type"] == "file")
+    iter = walk_files(project_data)
     for i in iter:
         # the / at the beginnning of i["folder_path"] makes the join to forget
         # about the working dir
