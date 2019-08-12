@@ -43,8 +43,24 @@ def get_client():
 
 
 def walk_project_data(project_data, predicate=lambda x: True):
+    """Iterate on the project entities (folders, files).
+
+    Args:
+        project_data (dict): the project data as retrieved by
+            :py:meth:`sharelatex.SyncClient.get_project_data`
+        predicate: lambda to filter the entry
+            an entry is a dictionnary as in
+            {"folder_id": <id of the current folder>,
+             "folder_path": <complete path of the folder /a/folder/>,
+             "name": <name of the entity>,
+             "type": <type of the entity directory or file>,
+             "_id" : <id of the entity>
+
+    Returns:
+        A generator for the matching entities
+    """
     def _walk_project_data(current, parent):
-        """Iterate on the project structure (files)
+        """Iterate on the project structure
 
         Args:
             current (dict): current folder representation
@@ -80,13 +96,32 @@ def walk_project_data(project_data, predicate=lambda x: True):
     return _walk_project_data(project_data["rootFolder"], "/")
 
 
-def lookup_folder(metadata, folder_path):
+def lookup_folder(project_data, folder_path):
+    """Lookup a folder by its path
+
+    Args:
+        project_data (dict): the project data as retrieved by
+            :py:meth:`sharelatex.SyncClient.get_project_data`
+        folder_path (str): the path of the folder. Must start with ``/``.
+
+    Returns:
+        The folder id (str)
+
+    Raises:
+         StopIteration if the folder isn't found
+    """
     folders = walk_project_data(
-        metadata, predicate=lambda x: x["folder_path"] == folder_path
+        project_data, predicate=lambda x: x["folder_path"] == folder_path
     )
     return next(folders)
 
 def walk_files(project_data):
+    """Iterates on the file only of a project.
+
+    Args:
+        project_data (dict): the project data as retrieved by
+            :py:meth:`sharelatex.SyncClient.get_project_data`
+    """
     return walk_project_data(project_data, lambda x: x["type"] == "file")
 
 
@@ -243,6 +278,13 @@ class SyncClient:
         return r
 
     def upload_file(self, project_id, folder_id, path):
+        """Upload a file to sharelatex.
+
+        Args:
+            project_id (str): the project id
+            folder_id (str): the parent folder
+            path (str): local path to the file
+        """
         url = f"{self.base_url}/project/{project_id}/upload"
         filename = os.path.basename(path)
         # TODO(msimonin): handle correctly the content-type
@@ -265,6 +307,21 @@ class SyncClient:
         return response
 
     def create_folder(self, project_id, parent_folder, name):
+        """Create a folder on sharelatex.
+
+        Args:
+            project_id (str): The project id of the project to create the folder in
+            parent_folder (str): The id of the folder to create the folder in
+            name (str): Name of the folder
+
+        Returns:
+            response (dict) status of the request as returned by sharelatex
+
+        Raises:
+            Something wrong with sharelatex
+            - 500 server error
+            - 400 the folder already exists
+        """
         url = f"{self.base_url}/project/{project_id}/folder"
         data = {"parent_folder_id": parent_folder, "_csrf": self.csrf, "name": name}
         logger.debug(data)
@@ -301,6 +358,11 @@ class SyncClient:
         return new_folder["_id"]
 
     def upload(self, path):
+        """Upload a project (zip) to sharelatex.
+
+        Args:
+            path (str): path to the zip file of a project.
+        """
         url = f"{self.base_url}/project/new/upload"
         filename = os.path.basename(path)
         mime = "application/zip"
