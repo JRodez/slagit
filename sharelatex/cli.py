@@ -46,6 +46,7 @@ def pull(project_id):
         f.write(json.dumps(project_data, indent=4))
     client.download_project(project_id)
 
+
     git = repo.git
     git.add(".")
     git.commit("-m 'resync'")
@@ -79,7 +80,7 @@ def push():
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated
-    iter = walk_project_data(project_data)
+    iter = walk_project_data(project_data, lambda x: x["type"] == "file")
     for i in iter:
         # the / at the beginnning of i["folder_path"] makes the join to forget
         # about the working dir
