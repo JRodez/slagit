@@ -31,10 +31,16 @@ def get_clean_repo():
     return repo
 
 
-def update_ref(repo):
+def update_ref(repo, message="update_ref", commit=True):
     git = repo.git
-    git.add(".")
-    git.commit("-m 'resync'")
+
+    if commit:
+        # quick and dirty
+        # commit will throw an exception if there's nothing to commit
+        # which happen after pushing
+        # with gitpython there must be a way to do better than this
+        git.add(".")
+        git.commit(f"-m '{message}'")
     sync_branch = repo.create_head(SYNC_BRANCH, force=True)
     sync_branch.commit = "HEAD"
 
@@ -61,7 +67,7 @@ def pull(project_id):
     client.download_project(project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
-    update_ref(repo)
+    update_ref(repo, message="pull")
 
 
 @cli.command(help="Push the commited changes back to sharelatex")
@@ -96,10 +102,12 @@ def push():
         path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
         client.upload_file(project_id, i["folder_id"], path)
 
+    update_ref(repo, message="push", commit=False)
+
 
 @cli.command(help="Upload the current directory as a new sharelatex project")
 @click.argument("name")
-def upload(name):
+def new(name):
     # check if we're on a git repo
     client = get_client()
     repo = get_clean_repo()
@@ -121,5 +129,4 @@ def upload(name):
         f.write(json.dumps(project_data, indent=4))
 
     archive_path.unlink()
-
-    update_ref(repo)
+    update_ref(repo, message="upload")
