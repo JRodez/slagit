@@ -40,7 +40,7 @@ def update_ref(repo, message="update_ref", commit=True):
         # which happen after pushing
         # with gitpython there must be a way to do better than this
         git.add(".")
-        git.commit(f"-m '{message}'")
+        repo.index.commit(f"{message}")
     sync_branch = repo.create_head(SYNC_BRANCH, force=True)
     sync_branch.commit = "HEAD"
 
@@ -71,7 +71,13 @@ def pull(project_id):
 
 
 @cli.command(help="Push the commited changes back to sharelatex")
-def push():
+@click.option(
+    "--force",
+    "-f",
+    help="""Push without attempting to resync
+the remote project with the local""",
+)
+def push(force):
     client = get_client()
     repo = Repo()
     # Fail if the repo is clean
@@ -80,6 +86,7 @@ def push():
         print("The repository isn't clean")
         return
     tree = repo.tree()
+
     # reload .sharelatex
     # TODO(msimonin): handle errors
     #   - non existent
@@ -90,6 +97,21 @@ def push():
         project_data = json.load(f)
 
     project_id = project_data["_id"]
+
+    if not force:
+        # attempt to "merge" the remote and the local working copy
+
+        # TODO(msimonin) get current branch
+        # here we assume master
+        git = repo.git
+        git.checkout(SYNC_BRANCH)
+        project_data = client.get_project_data(project_id)
+        with open(SHARELATEX_FILE, "w") as f:
+            f.write(json.dumps(project_data, indent=4))
+        client.download_project(project_id)
+        update_ref(repo, message="pre push")
+        git.checkout("master")
+        git.merge(SYNC_BRANCH)
 
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
