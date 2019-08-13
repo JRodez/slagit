@@ -31,16 +31,12 @@ def get_clean_repo():
     return repo
 
 
-def update_ref(repo, message="update_ref", commit=True):
+def update_ref(repo, message="update_ref"):
     git = repo.git
 
-    if commit:
-        # quick and dirty
-        # commit will throw an exception if there's nothing to commit
-        # which happen after pushing
-        # with gitpython there must be a way to do better than this
-        git.add(".")
-        repo.index.commit(f"{message}")
+    git.add(".")
+    # with this we can have two consecutive commit with the same content
+    repo.index.commit(f"{message}")
     sync_branch = repo.create_head(SYNC_BRANCH, force=True)
     sync_branch.commit = "HEAD"
 
@@ -124,7 +120,7 @@ def push(force):
         path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
         client.upload_file(project_id, i["folder_id"], path)
 
-    update_ref(repo, message="push", commit=False)
+    update_ref(repo, message="push")
 
 
 @cli.command(help="Upload the current directory as a new sharelatex project")
