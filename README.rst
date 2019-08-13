@@ -1,5 +1,4 @@
-Pull/Push sharelatex project from/to GIT
-
+WORK IN PROGRESS: Pull/Push sharelatex project from/to GIT
 
 The code is currently experimental and under development.
 Use it with caution.
