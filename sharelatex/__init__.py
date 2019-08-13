@@ -59,6 +59,7 @@ def walk_project_data(project_data, predicate=lambda x: True):
     Returns:
         A generator for the matching entities
     """
+
     def _walk_project_data(current, parent):
         """Iterate on the project structure
 
@@ -114,6 +115,7 @@ def lookup_folder(project_data, folder_path):
         project_data, predicate=lambda x: x["folder_path"] == folder_path
     )
     return next(folders)
+
 
 def walk_files(project_data):
     """Iterates on the file only of a project.

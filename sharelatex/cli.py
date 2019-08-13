@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 import time
 
 from sharelatex import get_client, walk_files
@@ -21,39 +22,46 @@ def cli():
     pass
 
 
+def get_clean_repo():
+    repo = Repo.init()
+    # Fail if the repo is clean
+    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
+        print(repo.git.status())
+        raise Exception("The repo isn't clean")
+    return repo
+
+
+def update_ref(repo):
+    git = repo.git
+    git.add(".")
+    git.commit("-m 'resync'")
+    sync_branch = repo.create_head(SYNC_BRANCH, force=True)
+    sync_branch.commit = "HEAD"
+
+
 @cli.command(
     help="""
 Pull the files from sharelatex.
 (Note this uses the current directory)
 """
 )
-@click.argument("project_id")
+@click.argument("project_id", default="")
 def pull(project_id):
     client = get_client()
+    repo = get_clean_repo()
 
-    # quick way to get the repo resync the repo
-    # issue: when we already are in a git repo (by mistake)
-    # this will commit everything on top
-    repo = Repo.init()
-    # Fail if the repo is clean
-    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
-        print(repo.git.status())
-        print("The repository isn't clean")
-        return
-
-    project_data = client.get_project_data(project_id)
-    with open(SHARELATEX_FILE, "w") as f:
-        f.write(json.dumps(project_data, indent=4))
+    if project_id == "":
+        with open(SHARELATEX_FILE, "r") as f:
+            project_data = json.load(f)
+        project_id = project_data["_id"]
+    else:
+        project_data = client.get_project_data(project_id)
+        with open(SHARELATEX_FILE, "w") as f:
+            f.write(json.dumps(project_data, indent=4))
     client.download_project(project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
-    git = repo.git
-    git.add(".")
-    git.commit("-m 'resync'")
-
-    #  We keep track of this remote version in a dedicated branch
-    sync_branch = repo.create_head(SYNC_BRANCH)
-    sync_branch.commit = "HEAD"
+    update_ref(repo)
 
 
 @cli.command(help="Push the commited changes back to sharelatex")
@@ -94,16 +102,17 @@ def push():
 def upload(name):
     # check if we're on a git repo
     client = get_client()
-    repo = Repo()
+    repo = get_clean_repo()
     iter_file = repo.tree().traverse()
     archive_name = "%s.zip" % name
-    with ZipFile(archive_name, "w") as z:
+    archive_path = Path(archive_name)
+    with ZipFile(str(archive_path), "w") as z:
         for f in iter_file:
+            logging.debug(f"Adding {f.path} to the archive")
             z.write(f.path)
 
     response = client.upload(archive_name)
     print("Successfully uploaded %s [%s]" % (name, response["project_id"]))
-
 
     # TODO(msimonin): the following is starting to feel like the init
     # there's an opportunity to factorize both
@@ -111,11 +120,6 @@ def upload(name):
     with open(SHARELATEX_FILE, "w") as f:
         f.write(json.dumps(project_data, indent=4))
 
-    git = repo.git
-    git.add(".")
-    git.commit("-m 'resync'")
+    archive_path.unlink()
 
-
-    #  We keep track of this remote version in a dedicated branch
-    sync_branch = repo.create_head(SYNC_BRANCH)
-    sync_branch.commit = "HEAD"
+    update_ref(repo)
