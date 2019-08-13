@@ -15,7 +15,7 @@ Installation
 
     # for now
     git clone https://gitlab.inria.fr/sed-rennes/sharelatex/python-sharelatex
-    cd pyhton-sharelatex
+    cd python-sharelatex
     pip install [-e] .
        
 
@@ -44,16 +44,26 @@ Get an existing project on slatex
     cd test
     # download all files of a remote project
     git slatex init <project_id>
+
+
+Editing and pushing back to slatex
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+.. code:: bash
+
     # edit your files
+    # commit, commit, commit ...
     #
     # Push back your change to sharelatex
     git slatex push
 
 
 Concurrent updates may occur between your local files (because you changed them)
-and the remote ones (because you collaborators changed them).
-So before pushing, we try to make sure the merge between the remote copy and the
-local ones is ok.
+and the remote ones (because you collaborators changed them). So before pushing,
+we try to make sure the merge between the remote copy and the local ones is ok.
+You'll have to resolve the conflict manually (as usual with Git) and attempt a
+new push.
 
 Create a remote project from a local git
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
