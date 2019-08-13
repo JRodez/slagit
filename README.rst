@@ -83,5 +83,4 @@ Create a remote project from a local git
 
 .. code:: bash
    
-   git slatex upload <name>
-
+   git slatex new <name>
