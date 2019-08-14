@@ -381,3 +381,22 @@ class SyncClient:
         if not response["success"]:
             raise Exception(f"Uploading {path} fails")
         return response
+
+    def compile(self, project_id):
+        """Trigger a remote compilation.
+
+        Note that this is run against the remote version.
+
+        Args:
+            project_id (str): the project id of the project to compile
+        """
+
+        url = f"{self.base_url}/project/{project_id}/compile"
+
+        data = {
+            "_csrf": self.csrf,
+        }
+        r = self.client.post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        response = r.json()
+        return response

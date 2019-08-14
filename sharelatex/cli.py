@@ -41,6 +41,28 @@ def update_ref(repo, message="update_ref"):
     sync_branch.commit = "HEAD"
 
 
+def reload_project_id(client, project_id=""):
+    if project_id == "":
+        with open(SHARELATEX_FILE, "r") as f:
+            project_data = json.load(f)
+    else:
+        project_data = client.get_project_data(project_id)
+        with open(SHARELATEX_FILE, "w") as f:
+            f.write(json.dumps(project_data, indent=4))
+    project_id = project_data["_id"]
+    return project_id
+
+
+@cli.command(help="Compile the remote version of a project")
+@click.argument("project_id", default="")
+def compile(project_id):
+    client = get_client()
+
+    project_id = reload_project_id(client, project_id)
+    response = client.compile(project_id)
+    print(response)
+
+
 @cli.command(
     help="""
 Pull the files from sharelatex.
@@ -52,14 +74,7 @@ def pull(project_id):
     client = get_client()
     repo = get_clean_repo()
 
-    if project_id == "":
-        with open(SHARELATEX_FILE, "r") as f:
-            project_data = json.load(f)
-        project_id = project_data["_id"]
-    else:
-        project_data = client.get_project_data(project_id)
-        with open(SHARELATEX_FILE, "w") as f:
-            f.write(json.dumps(project_data, indent=4))
+    project_id = reload_project_id(client, project_id)
     client.download_project(project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
@@ -148,3 +163,32 @@ def new(name):
 
     archive_path.unlink()
     update_ref(repo, message="upload")
+
+
+@cli.command(help="Upload the current directory as a new sharelatex project")
+@click.argument("name")
+def new(name):
+    # check if we're on a git repo
+    client = get_client()
+    repo = get_clean_repo()
+    iter_file = repo.tree().traverse()
+    archive_name = "%s.zip" % name
+    archive_path = Path(archive_name)
+    with ZipFile(str(archive_path), "w") as z:
+        for f in iter_file:
+            logging.debug(f"Adding {f.path} to the archive")
+            z.write(f.path)
+
+    response = client.upload(archive_name)
+    print("Successfully uploaded %s [%s]" % (name, response["project_id"]))
+
+    # TODO(msimonin): the following is starting to feel like the init
+    # there's an opportunity to factorize both
+    project_data = client.get_project_data(response["project_id"])
+    with open(SHARELATEX_FILE, "w") as f:
+        f.write(json.dumps(project_data, indent=4))
+
+    archive_path.unlink()
+    update_ref(repo, message="upload")
+
+
