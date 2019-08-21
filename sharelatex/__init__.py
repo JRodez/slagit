@@ -385,7 +385,7 @@ class SyncClient:
     def compile(self, project_id):
         """Trigger a remote compilation.
 
-        Note that this is run against the remote version.
+        Note that this is run against the remote version not the local one.
 
         Args:
             project_id (str): the project id of the project to compile
