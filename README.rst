@@ -17,7 +17,6 @@ Installation
     git clone https://gitlab.inria.fr/sed-rennes/sharelatex/python-sharelatex
     cd python-sharelatex
     pip install [-e] .
-       
 
 
 Configuration
@@ -43,7 +42,7 @@ Get an existing project on slatex
     mkdir test
     cd test
     # download all files of a remote project
-    git slatex init <project_id>
+    git slatex pull <project_id>
 
 
 Editing and pushing back to slatex
