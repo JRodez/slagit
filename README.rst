@@ -10,10 +10,10 @@ Installation
 
 .. code:: bash
 
-    # in the future ?
+    # Latest stable version
     pip install sharelatex
 
-    # for now
+    # Development version
     git clone https://gitlab.inria.fr/sed-rennes/sharelatex/python-sharelatex
     cd python-sharelatex
     pip install [-e] .
