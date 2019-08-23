@@ -255,15 +255,62 @@ class SyncClient:
             target_path.unlink()
 
     def get_doc(self, project_id, doc_id):
-        """TODO(msimonin): the route is currently private on the server side
 
-        see https://gitlab.inria.fr/sed-rennes/sharelatex/web-sharelatex/blob/inria-1.2.1/app/coffee/router.coffee#L253
+        """Get a doc from a project .
+
+        This mimics the browser behaviour when opening the project editor. This
+        will open a websocket connection to the server to get the informations.
+
+        Args:
+            project_id (str): the id of the project
+            doc_id (str): the id of the doc
         """
-        url = f"{self.base_url}/project/{project_id}/doc/{doc_id}"
-        r = self.client.get(url, data=self.login_data, verify=self.verify)
 
-        # TODO(msimonin): return type
-        return r
+        url = f"{self.base_url}/project/{project_id}"
+
+        # use thread local storage to pass the project data
+        storage = threading.local()
+
+        class Namespace(BaseNamespace):
+            def on_connect(self):
+                logger.debug("[Connected] Yeah !!")
+
+            def on_reconnect(self):
+                logger.debug("[Reconnected] re-Yeah !!")
+
+            def on_disconnect(self):
+                logger.debug("[Disconnected]  snif!  ")
+        def on_connection_rejected(*args):
+            logger.debug("[connectionRejected]  oh !!!")
+
+        with SocketIO(
+            self.base_url,
+            verify=self.verify,
+            Namespace=Namespace,
+            cookies={"sharelatex.sid": self.sharelatex_sid},
+            headers={"Referer": url},
+        ) as socketIO:
+
+            def on_joint_doc(*args):
+                storage.doc_data = args[1]
+
+            def on_joint_project(*args):
+                storage.project_data = args[1]
+                socketIO.emit(
+                    "joinDoc", doc_id, {'encodeRanges': True}, on_joint_doc
+                )
+
+            def on_connection_accepted(*args):
+                logger.debug("[connectionAccepted]  Waoh !!!")
+                socketIO.emit(
+                    "joinProject", {"project_id": project_id}, on_joint_project
+                )
+
+            socketIO.on("connectionAccepted", on_connection_accepted)
+            socketIO.on("connectionRejected", on_connection_rejected)
+            socketIO.wait(seconds=3)
+        # NOTE(msimonin): Check return type
+        return '\n'.join(storage.doc_data)
 
     def get_file(self, project_id, file_id):
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
