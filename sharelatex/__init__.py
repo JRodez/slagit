@@ -31,13 +31,12 @@ _api_lock = threading.Lock()
 _api_client = None
 
 
-def get_client():
+def get_client(base_url=BASE_URL, username=None, password=None, verify=True):
     """Gets the reference to the API cient (singleton)."""
     with _api_lock:
         global _api_client
         if not _api_client:
-            conf_file = os.path.join(os.environ.get("HOME"), ".sharelatex.yaml")
-            _api_client = SyncClient.from_yaml(filepath=conf_file)
+            _api_client = SyncClient(base_url=base_url, username=username, password=password, verify=True)
 
         return _api_client
 

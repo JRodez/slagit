@@ -3,6 +3,8 @@ import logging
 from pathlib import Path
 import time
 
+import getpass
+
 from sharelatex import get_client, walk_files
 
 import click
@@ -62,7 +64,6 @@ def compile(project_id):
     response = client.compile(project_id)
     print(response)
 
-
 @cli.command(
     help="""
 Pull the files from sharelatex.
@@ -73,12 +74,62 @@ Pull the files from sharelatex.
 def pull(project_id):
     client = get_client()
     repo = get_clean_repo()
-
     project_id = reload_project_id(client, project_id)
     client.download_project(project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="pull")
+
+@cli.command(
+    help="""
+Get (clone) the files from sharelatex projet URL and crate a local git depot.
+(Note this uses the current directory)
+"""
+)
+@click.argument("projet_url", default="")
+@click.option(
+    "--username",
+    "-u",
+    default="",
+    help="""username for sharelatex server account, if user is not provided, it will be asked online""",
+)
+@click.option(
+    "--password",
+    "-p",
+    default="",
+    help="""user password for sharelatex server, if password is not provided, it will be asked online""",
+)
+@click.option(
+    "--password",
+    "-p",
+    default="",
+    help="""user password for sharelatex server, if password is not provided, it will be asked online""",
+)
+@click.option('--save-password',
+    is_flag=True,
+    help="""save user account information (clear password) in git local config""",)
+def clone(projet_url, username, password,save_password):
+
+    if username=="" :
+       username = input("username :")
+    if password =="" :
+        password = getpass.getpass('password:')
+    slashparts = projet_url.split('/')
+    project_id = slashparts[-1]
+    base_url = '/'.join(slashparts[:-2])
+    client = get_client(base_url, username, password, verify=True)
+    repo = get_clean_repo()
+    with repo.config_writer() as writer :
+        writer.set_value('slatex', 'baseUrl', base_url)
+        writer.set_value('slatex', 'projectId', project_id)
+        if save_password:
+            writer.set_value('slatex', 'username', username)
+            writer.set_value('slatex', 'password', password)
+    project_id = reload_project_id(client, project_id)
+    client.download_project(project_id)
+
+    # TODO(msimonin): add a decent default .gitignore ?
+    update_ref(repo, message="clone")
 
 
 @cli.command(help="Push the commited changes back to sharelatex")
