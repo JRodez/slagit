@@ -64,6 +64,7 @@ def compile(project_id):
     response = client.compile(project_id)
     print(response)
 
+
 @cli.command(
     help="""
 Pull the files from sharelatex.
@@ -79,6 +80,7 @@ def pull(project_id):
 
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="pull")
+
 
 @cli.command(
     help="""
@@ -105,26 +107,28 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
     default="",
     help="""user password for sharelatex server, if password is not provided, it will be asked online""",
 )
-@click.option('--save-password',
+@click.option(
+    "--save-password",
     is_flag=True,
-    help="""save user account information (clear password) in git local config""",)
-def clone(projet_url, username, password,save_password):
+    help="""save user account information (clear password) in git local config""",
+)
+def clone(projet_url, username, password, save_password):
 
-    if username=="" :
-       username = input("username :")
-    if password =="" :
-        password = getpass.getpass('password:')
-    slashparts = projet_url.split('/')
+    if username == "":
+        username = input("username :")
+    if password == "":
+        password = getpass.getpass("password:")
+    slashparts = projet_url.split("/")
     project_id = slashparts[-1]
-    base_url = '/'.join(slashparts[:-2])
+    base_url = "/".join(slashparts[:-2])
     client = get_client(base_url, username, password, verify=True)
     repo = get_clean_repo()
-    with repo.config_writer() as writer :
-        writer.set_value('slatex', 'baseUrl', base_url)
-        writer.set_value('slatex', 'projectId', project_id)
+    with repo.config_writer() as writer:
+        writer.set_value("slatex", "baseUrl", base_url)
+        writer.set_value("slatex", "projectId", project_id)
         if save_password:
-            writer.set_value('slatex', 'username', username)
-            writer.set_value('slatex', 'password', password)
+            writer.set_value("slatex", "username", username)
+            writer.set_value("slatex", "password", password)
     project_id = reload_project_id(client, project_id)
     client.download_project(project_id)
 
@@ -241,5 +245,3 @@ def new(name):
 
     archive_path.unlink()
     update_ref(repo, message="upload")
-
-

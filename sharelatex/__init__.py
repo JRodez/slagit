@@ -36,7 +36,9 @@ def get_client(base_url=BASE_URL, username=None, password=None, verify=True):
     with _api_lock:
         global _api_client
         if not _api_client:
-            _api_client = SyncClient(base_url=base_url, username=username, password=password, verify=True)
+            _api_client = SyncClient(
+                base_url=base_url, username=username, password=password, verify=True
+            )
 
         return _api_client
 
@@ -279,6 +281,7 @@ class SyncClient:
 
             def on_disconnect(self):
                 logger.debug("[Disconnected]  snif!  ")
+
         def on_connection_rejected(*args):
             logger.debug("[connectionRejected]  oh !!!")
 
@@ -295,9 +298,7 @@ class SyncClient:
 
             def on_joint_project(*args):
                 storage.project_data = args[1]
-                socketIO.emit(
-                    "joinDoc", doc_id, {'encodeRanges': True}, on_joint_doc
-                )
+                socketIO.emit("joinDoc", doc_id, {"encodeRanges": True}, on_joint_doc)
 
             def on_connection_accepted(*args):
                 logger.debug("[connectionAccepted]  Waoh !!!")
@@ -309,7 +310,7 @@ class SyncClient:
             socketIO.on("connectionRejected", on_connection_rejected)
             socketIO.wait(seconds=3)
         # NOTE(msimonin): Check return type
-        return '\n'.join(storage.doc_data)
+        return "\n".join(storage.doc_data)
 
     def get_file(self, project_id, file_id):
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
@@ -439,9 +440,7 @@ class SyncClient:
 
         url = f"{self.base_url}/project/{project_id}/compile"
 
-        data = {
-            "_csrf": self.csrf,
-        }
+        data = {"_csrf": self.csrf}
         r = self.client.post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
