@@ -5,7 +5,7 @@ import time
 
 import getpass
 
-from sharelatex import get_client, walk_files
+from sharelatex import SyncClient, walk_files
 
 import click
 from git import Repo
@@ -33,6 +33,64 @@ def get_clean_repo():
     return repo
 
 
+def refresh_project_information(repo, base_url=None, project_id=None):
+    need_save = True
+    with repo.config_reader() as reader:
+        if base_url == None:
+            u = reader.get_value("slatex", "baseUrl")
+            if u:
+                base_url = u
+                need_save = False
+            else:
+                base_url = input("base url :")
+                need_save = True
+        if project_id == None:
+            p = reader.get_value("slatex", "projectId")
+            if p:
+                project_id = p
+                need_save = False
+            else:
+                project_id = input("project id :")
+                need_save = True
+    if need_save:
+        with repo.config_writer() as writer:
+            writer.set_value("slatex", "baseUrl", base_url)
+            writer.set_value("slatex", "projectId", project_id)
+    return base_url, project_id
+
+
+def refresh_account_information(repo, username=None, password=None, save_password=None):
+    need_save = True
+    with repo.config_reader() as reader:
+        if username == None:
+            u = reader.get_value("slatex", "username")
+            if u:
+                username = u
+                need_save = False
+            else:
+                username = input("username :")
+                need_save = True
+        if password == None:
+            p = reader.get_value("slatex", "password")
+            if p:
+                password = p
+                need_save = False
+            else:
+                password = getpass.getpass("password:")
+                if save_password == None:
+                    r = input(
+                        "do you want to save in git config (in clair) your password (y/n) ?"
+                    )
+                    if r == "Y" or r == "y":
+                        save_password = True
+                need_save = True
+    if save_password and need_save:
+        with repo.config_writer() as writer:
+            writer.set_value("slatex", "username", username)
+            writer.set_value("slatex", "password", password)
+    return username, password
+
+
 def update_ref(repo, message="update_ref"):
     git = repo.git
 
@@ -43,26 +101,37 @@ def update_ref(repo, message="update_ref"):
     sync_branch.commit = "HEAD"
 
 
-def reload_project_id(client, project_id=""):
-    if project_id == "":
-        with open(SHARELATEX_FILE, "r") as f:
-            project_data = json.load(f)
-    else:
-        project_data = client.get_project_data(project_id)
-        with open(SHARELATEX_FILE, "w") as f:
-            f.write(json.dumps(project_data, indent=4))
-    project_id = project_data["_id"]
-    return project_id
+def _pull(repo, client, project_id):
+    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
+        print(repo.git.status())
+        print("The repository isn't clean")
+        return
+
+    # attempt to "merge" the remote and the local working copy
+
+    # TODO(msimonin) get current branch
+    # here we assume master
+    git = repo.git
+    git.checkout(SYNC_BRANCH)
+    client.download_project(project_id)
+    update_ref(repo, message="pre pull")
+    git.checkout("master")
+    git.merge(SYNC_BRANCH)
 
 
 @cli.command(help="Compile the remote version of a project")
 @click.argument("project_id", default="")
 def compile(project_id):
-    client = get_client()
+    repo = Repo()
+    base_url, project_id = refresh_project_information(repo)
+    username, password = refresh_account_information(repo)
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
 
-    project_id = reload_project_id(client, project_id)
     response = client.compile(project_id)
     print(response)
+
 
 @cli.command(
     help="""
@@ -70,15 +139,19 @@ Pull the files from sharelatex.
 (Note this uses the current directory)
 """
 )
-@click.argument("project_id", default="")
-def pull(project_id):
-    client = get_client()
-    repo = get_clean_repo()
-    project_id = reload_project_id(client, project_id)
-    client.download_project(project_id)
+def pull():
+    repo = Repo()
+    base_url, project_id = refresh_project_information(repo)
+    username, password = refresh_account_information(repo)
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
+    # Fail if the repo is clean
+    _pull(repo, client, project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="pull")
+
 
 @cli.command(
     help="""
@@ -90,42 +163,36 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
 @click.option(
     "--username",
     "-u",
-    default="",
+    default=None,
     help="""username for sharelatex server account, if user is not provided, it will be asked online""",
 )
 @click.option(
     "--password",
     "-p",
-    default="",
+    default=None,
     help="""user password for sharelatex server, if password is not provided, it will be asked online""",
 )
 @click.option(
-    "--password",
-    "-p",
-    default="",
-    help="""user password for sharelatex server, if password is not provided, it will be asked online""",
+    "--save-password/--no-save-password",
+    default=None,
+    help="""save user account information (clear password) in git local config""",
 )
-@click.option('--save-password',
-    is_flag=True,
-    help="""save user account information (clear password) in git local config""",)
-def clone(projet_url, username, password,save_password):
-
-    if username=="" :
-       username = input("username :")
-    if password =="" :
-        password = getpass.getpass('password:')
-    slashparts = projet_url.split('/')
-    project_id = slashparts[-1]
-    base_url = '/'.join(slashparts[:-2])
-    client = get_client(base_url, username, password, verify=True)
+def clone(projet_url, username, password, save_password):
     repo = get_clean_repo()
-    with repo.config_writer() as writer :
-        writer.set_value('slatex', 'baseUrl', base_url)
-        writer.set_value('slatex', 'projectId', project_id)
-        if save_password:
-            writer.set_value('slatex', 'username', username)
-            writer.set_value('slatex', 'password', password)
-    project_id = reload_project_id(client, project_id)
+    username, password = refresh_account_information(
+        repo, username, password, save_password
+    )
+    # TODO : robust parse regexp
+    slashparts = projet_url.split("/")
+    project_id = slashparts[-1]
+    base_url = "/".join(slashparts[:-2])
+
+    base_url, project_id = refresh_project_information(repo, base_url, project_id)
+
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
+
     client.download_project(project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
@@ -140,41 +207,15 @@ def clone(projet_url, username, password,save_password):
 the remote project with the local""",
 )
 def push(force):
-    client = get_client()
     repo = Repo()
-    # Fail if the repo is clean
-    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
-        print(repo.git.status())
-        print("The repository isn't clean")
-        return
-    tree = repo.tree()
-
-    # reload .sharelatex
-    # TODO(msimonin): handle errors
-    #   - non existent
-    #   - non readable...
-    # TODO(msimonin): take the git tree instead of reloading the .sharelatex
-    sharelatex_file = list(tree.traverse(lambda i, d: i.path == SHARELATEX_FILE))[0]
-    with open(sharelatex_file.abspath, "r") as f:
-        project_data = json.load(f)
-
-    project_id = project_data["_id"]
-
+    base_url, project_id = refresh_project_information(repo)
+    username, password = refresh_account_information(repo)
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
     if not force:
-        # attempt to "merge" the remote and the local working copy
-
-        # TODO(msimonin) get current branch
-        # here we assume master
-        git = repo.git
-        git.checkout(SYNC_BRANCH)
-        project_data = client.get_project_data(project_id)
-        with open(SHARELATEX_FILE, "w") as f:
-            f.write(json.dumps(project_data, indent=4))
-        client.download_project(project_id)
-        update_ref(repo, message="pre push")
-        git.checkout("master")
-        git.merge(SYNC_BRANCH)
-
+        _pull(repo, client, project_id)
+    project_data = client.get_project_data(project_id)
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated
@@ -190,13 +231,36 @@ def push(force):
 
 
 @cli.command(help="Upload the current directory as a new sharelatex project")
-@click.argument("name")
-def new(name):
-    # check if we're on a git repo
-    client = get_client()
+@click.argument("projectname")
+@click.argument("base_url")
+@click.option(
+    "--username",
+    "-u",
+    default=None,
+    help="""username for sharelatex server account, if user is not provided, it will be asked online""",
+)
+@click.option(
+    "--password",
+    "-p",
+    default=None,
+    help="""user password for sharelatex server, if password is not provided, it will be asked online""",
+)
+@click.option(
+    "--save-password/--no-save-password",
+    default=None,
+    help="""save user account information (clear password) in git local config""",
+)
+def new(projectname, base_url, username, password, save_password):
     repo = get_clean_repo()
+    username, password = refresh_account_information(
+        repo, username, password, save_password
+    )
+
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
     iter_file = repo.tree().traverse()
-    archive_name = "%s.zip" % name
+    archive_name = "%s.zip" % projectname
     archive_path = Path(archive_name)
     with ZipFile(str(archive_path), "w") as z:
         for f in iter_file:
@@ -204,42 +268,8 @@ def new(name):
             z.write(f.path)
 
     response = client.upload(archive_name)
-    print("Successfully uploaded %s [%s]" % (name, response["project_id"]))
-
-    # TODO(msimonin): the following is starting to feel like the init
-    # there's an opportunity to factorize both
-    project_data = client.get_project_data(response["project_id"])
-    with open(SHARELATEX_FILE, "w") as f:
-        f.write(json.dumps(project_data, indent=4))
-
+    print("Successfully uploaded %s [%s]" % (projectname, response["project_id"]))
     archive_path.unlink()
+
+    refresh_project_information(repo, base_url, response["project_id"])
     update_ref(repo, message="upload")
-
-
-@cli.command(help="Upload the current directory as a new sharelatex project")
-@click.argument("name")
-def new(name):
-    # check if we're on a git repo
-    client = get_client()
-    repo = get_clean_repo()
-    iter_file = repo.tree().traverse()
-    archive_name = "%s.zip" % name
-    archive_path = Path(archive_name)
-    with ZipFile(str(archive_path), "w") as z:
-        for f in iter_file:
-            logging.debug(f"Adding {f.path} to the archive")
-            z.write(f.path)
-
-    response = client.upload(archive_name)
-    print("Successfully uploaded %s [%s]" % (name, response["project_id"]))
-
-    # TODO(msimonin): the following is starting to feel like the init
-    # there's an opportunity to factorize both
-    project_data = client.get_project_data(response["project_id"])
-    with open(SHARELATEX_FILE, "w") as f:
-        f.write(json.dumps(project_data, indent=4))
-
-    archive_path.unlink()
-    update_ref(repo, message="upload")
-
-
