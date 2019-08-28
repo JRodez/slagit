@@ -177,7 +177,6 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
     default=None,
     help="""save user account information (clear password) in git local config""",
 )
-def clone(projet_url, username, password, save_password):
     repo = get_clean_repo()
     username, password = refresh_account_information(
         repo, username, password, save_password
@@ -194,31 +193,6 @@ def clone(projet_url, username, password, save_password):
     )
 
     client.download_project(project_id)
-
-    # TODO(msimonin): add a decent default .gitignore ?
-    update_ref(repo, message="clone")
-
-
-@cli.command(help="Push the commited changes back to sharelatex")
-@click.option(
-    "--force",
-    "-f",
-    help="""Push without attempting to resync
-the remote project with the local""",
-)
-def push(force):
-    repo = Repo()
-    base_url, project_id = refresh_project_information(repo)
-    username, password = refresh_account_information(repo)
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
-    )
-    if not force:
-        _pull(repo, client, project_id)
-    project_data = client.get_project_data(project_id)
-    # First iteration, we push we have in the project data
-    # limitations: modification on the local tree (folder, file creation) will
-    # not be propagated
     iter = walk_files(project_data)
     for i in iter:
         # the / at the beginnning of i["folder_path"] makes the join to forget
