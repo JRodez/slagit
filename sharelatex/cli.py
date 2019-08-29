@@ -9,10 +9,12 @@ from sharelatex import SyncClient, walk_files
 
 import click
 from git import Repo
+from git.config import cp
 from zipfile import ZipFile
 
 logger = logging.getLogger(__name__)
 SHARELATEX_FILE = ".sharelatex"
+SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
 
 
@@ -22,6 +24,41 @@ logging.basicConfig(level=logging.DEBUG)
 @click.group()
 def cli():
     pass
+
+
+class Config:
+    """Handle gitconfig read/write operations in a transparent way."""
+
+    def __init__(self, repo):
+        self.repo = repo
+
+    def set_value(self, section, key, value, config_level="repository"):
+        with self.repo.config_writer(config_level) as c:
+            try:
+                c.set_value(section, key, value)
+            except cp.NoSectionError as e:
+                # No section is found, we create a new one
+                logging.debug(e)
+                c.set_value(SLATEX_SECTION, "init", "")
+            except Exception as e:
+                raise e
+            finally:
+                c.release()
+
+    def get_value(self, section, key, default=None, config_level=None):
+        with self.repo.config_reader(config_level) as c:
+            try:
+                value = c.get_value(section, key)
+            except cp.NoSectionError as e:
+                logging.debug(e)
+                value = default
+            except cp.NoOptionError as e:
+                logging.debug(e)
+                value = default
+            except Exception as e:
+                raise e
+            finally:
+                return value
 
 
 def get_clean_repo():
@@ -35,59 +72,58 @@ def get_clean_repo():
 
 def refresh_project_information(repo, base_url=None, project_id=None):
     need_save = True
-    with repo.config_reader() as reader:
-        if base_url == None:
-            u = reader.get_value("slatex", "baseUrl", default='')
-            if u!='':
-                base_url = u
-                need_save = False
-            else:
-                base_url = input("base url :")
-                need_save = True
-        if project_id == None:
-            p = reader.get_value("slatex", "projectId", default='')
-            if p!='':
-                project_id = p
-                need_save = False
-            else:
-                project_id = input("project id :")
-                need_save = True
+    config = Config(repo)
+    if base_url == None:
+        #            u = reader.get_value(SLATEX_SECTION, "baseUrl")
+        u = config.get_value(SLATEX_SECTION, "baseUrl")
+        if u:
+            base_url = u
+            need_save = False
+        else:
+            base_url = input("base url :")
+            need_save = True
+    if project_id == None:
+        p = config.get_value(SLATEX_SECTION, "projectId")
+        if p:
+            project_id = p
+            need_save = False
+        else:
+            project_id = input("project id :")
+            need_save = True
     if need_save:
-        with repo.config_writer() as writer:
-            writer.set_value("slatex", "baseUrl", base_url)
-            writer.set_value("slatex", "projectId", project_id)
+        config.set_value("slatex", "baseUrl", base_url)
+        config.set_value("slatex", "projectId", project_id)
     return base_url, project_id
 
 
 def refresh_account_information(repo, username=None, password=None, save_password=None):
     need_save = True
-    with repo.config_reader() as reader:
-        if username == None:
-            u = reader.get_value("slatex", "username", default='')
-            if u!='':
-                username = u
-                need_save = False
-            else:
-                username = input("username :")
-                need_save = True
-        if password == None:
-            p = reader.get_value("slatex", "password", default='')
-            if p!='':
-                password = p
-                need_save = False
-            else:
-                password = getpass.getpass("password:")
-                if save_password == None:
-                    r = input(
-                        "do you want to save in git config (in clair) your password (y/n) ?"
-                    )
-                    if r == "Y" or r == "y":
-                        save_password = True
-                need_save = True
+    config = Config(repo)
+    if username == None:
+        u = config.get_value(SLATEX_SECTION, "username")
+        if u:
+            username = u
+            need_save = False
+        else:
+            username = input("username :")
+            need_save = True
+    if password == None:
+        p = config.get_value(SLATEX_SECTION, "password")
+        if p:
+            password = p
+            need_save = False
+        else:
+            password = getpass.getpass("password:")
+            if save_password == None:
+                r = input(
+                    "do you want to save in git config (in clair) your password (y/n) ?"
+                )
+                if r == "Y" or r == "y":
+                    save_password = True
+            need_save = True
     if save_password and need_save:
-        with repo.config_writer() as writer:
-            writer.set_value("slatex", "username", username)
-            writer.set_value("slatex", "password", password)
+        config.set_value(SLATEX_SECTION, "username", username)
+        config.set_value(SLATEX_SECTION, "password", password)
     return username, password
 
 
