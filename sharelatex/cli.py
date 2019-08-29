@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 import time
 
@@ -61,8 +62,8 @@ class Config:
                 return value
 
 
-def get_clean_repo():
-    repo = Repo.init()
+def get_clean_repo(path=None):
+    repo = Repo.init(path=path)
     # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         print(repo.git.status())
@@ -196,6 +197,7 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
 """
 )
 @click.argument("projet_url", default="")
+@click.argument("directory", default="")
 @click.option(
     "--username",
     "-u",
@@ -213,15 +215,23 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
     default=None,
     help="""save user account information (clear password) in git local config""",
 )
-def clone(projet_url, username, password, save_password):
-    repo = get_clean_repo()
-    username, password = refresh_account_information(
-        repo, username, password, save_password
-    )
+def clone(projet_url, directory, username, password, save_password):
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
     project_id = slashparts[-1]
     base_url = "/".join(slashparts[:-2])
+
+    if directory == "":
+        directory = Path(os.getcwd())
+        directory = Path(directory, project_id)
+    else:
+        directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    repo = get_clean_repo(path=directory)
+    username, password = refresh_account_information(
+        repo, username, password, save_password
+    )
 
     base_url, project_id = refresh_project_information(repo, base_url, project_id)
 
@@ -229,7 +239,7 @@ def clone(projet_url, username, password, save_password):
         base_url=base_url, username=username, password=password, verify=True
     )
 
-    client.download_project(project_id)
+    client.download_project(project_id, path=directory)
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="clone")
 
