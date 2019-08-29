@@ -217,14 +217,13 @@ class SyncClient:
 
         Args:
             project_id (str): the id of the project to download
-            path (str): a valid path where the files will be saved.
+            path (Path): a valid path where the files will be saved.
         """
         url = f"{self.base_url}/project/{project_id}/download/zip"
         r = self.client.get(url, stream=True)
 
         logger.info(f"Downloading {project_id} in {path}")
         target_dir = Path(path)
-        target_dir.mkdir(parents=True, exist_ok=True)
         target_path = Path(target_dir, f"{project_id}.zip")
         with open(str(target_path), "wb") as f:
             for chunk in r.iter_content(chunk_size=1024):
