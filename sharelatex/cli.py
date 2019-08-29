@@ -252,7 +252,7 @@ def clone(projet_url, directory, username, password, save_password):
 the remote project with the local""",
 )
 def push(force):
-    repo = Repo()
+    repo = get_clean_repo()
     base_url, project_id = refresh_project_information(repo)
     username, password = refresh_account_information(repo)
     client = SyncClient(
