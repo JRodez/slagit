@@ -226,7 +226,7 @@ def clone(projet_url, directory, username, password, save_password):
         directory = Path(directory, project_id)
     else:
         directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory.mkdir(parents=True, exist_ok=False)
 
     repo = get_clean_repo(path=directory)
     username, password = refresh_account_information(
