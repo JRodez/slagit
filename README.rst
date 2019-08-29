@@ -30,7 +30,7 @@ Get an existing project on slatex
     mkdir test
     cd test
     # download all files of a remote project
-    git slatex clone <project_URL>
+    git slatex clone <project_URL> <local_path_to_project>
 
 
 Editing and pushing back to slatex
