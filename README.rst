@@ -19,18 +19,6 @@ Installation
     pip install [-e] .
 
 
-Configuration
--------------
-
-.. code:: bash
-
-    echo '
-    username: MYLOGIN
-    password: MYPASSWORD
-    ' > ~/.sharelatex.yaml
-
-    chmod 600 ~/.sharelatex.yaml
-
 Example
 -------
 
@@ -42,7 +30,7 @@ Get an existing project on slatex
     mkdir test
     cd test
     # download all files of a remote project
-    git slatex pull <project_id>
+    git slatex clone <project_URL>
 
 
 Editing and pushing back to slatex
@@ -69,4 +57,4 @@ Create a remote project from a local git
 
 .. code:: bash
    
-   git slatex new <name>
+   git slatex new <base_server_URL> <new_project_name>
