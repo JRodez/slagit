@@ -37,16 +37,16 @@ def refresh_project_information(repo, base_url=None, project_id=None):
     need_save = True
     with repo.config_reader() as reader:
         if base_url == None:
-            u = reader.get_value("slatex", "baseUrl")
-            if u:
+            u = reader.get_value("slatex", "baseUrl", default='')
+            if u!='':
                 base_url = u
                 need_save = False
             else:
                 base_url = input("base url :")
                 need_save = True
         if project_id == None:
-            p = reader.get_value("slatex", "projectId")
-            if p:
+            p = reader.get_value("slatex", "projectId", default='')
+            if p!='':
                 project_id = p
                 need_save = False
             else:
@@ -63,16 +63,16 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
     need_save = True
     with repo.config_reader() as reader:
         if username == None:
-            u = reader.get_value("slatex", "username")
-            if u:
+            u = reader.get_value("slatex", "username", default='')
+            if u!='':
                 username = u
                 need_save = False
             else:
                 username = input("username :")
                 need_save = True
         if password == None:
-            p = reader.get_value("slatex", "password")
-            if p:
+            p = reader.get_value("slatex", "password", default='')
+            if p!='':
                 password = p
                 need_save = False
             else:
@@ -177,6 +177,7 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
     default=None,
     help="""save user account information (clear password) in git local config""",
 )
+def clone(projet_url, username, password, save_password):
     repo = get_clean_repo()
     username, password = refresh_account_information(
         repo, username, password, save_password
@@ -193,6 +194,31 @@ Get (clone) the files from sharelatex projet URL and crate a local git depot.
     )
 
     client.download_project(project_id)
+    # TODO(msimonin): add a decent default .gitignore ?
+    update_ref(repo, message="clone")
+
+
+@cli.command(help="Push the commited changes back to sharelatex")
+@click.option(
+    "--force",
+    "-f",
+    help="""Push without attempting to resync
+the remote project with the local""",
+)
+def push(force):
+    repo = Repo()
+    base_url, project_id = refresh_project_information(repo)
+    username, password = refresh_account_information(repo)
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
+    if not force:
+        _pull(repo, client, project_id)
+    project_data = client.get_project_data(project_id)
+    # First iteration, we push we have in the project data
+    # limitations: modification on the local tree (folder, file creation) will
+    # not be propagated
+
     iter = walk_files(project_data)
     for i in iter:
         # the / at the beginnning of i["folder_path"] makes the join to forget
