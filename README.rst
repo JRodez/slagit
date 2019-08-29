@@ -45,20 +45,23 @@ Editing and pushing back to slatex
     # Push back your change to sharelatex
     git slatex push
 
-Pull changes from sharelatex to local (like a git pull)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-.. code:: bash
-    # Pull changes from sharelatex
-    git slatex pull
-
-
 Concurrent updates may occur between your local files (because you changed them)
 and the remote ones (because you collaborators changed them). So before pushing,
 we try to make sure the merge between the remote copy and the local ones is ok.
 You'll have to resolve the conflict manually (as usual with Git) and attempt a
 new push.
+
+Pull changes from sharelatex to local (like a git pull)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+.. code:: bash
+    
+    # Pull changes from sharelatex
+    git slatex pull
+
+
+
 
 Create a remote project from a local git
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
