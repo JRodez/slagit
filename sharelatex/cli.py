@@ -260,6 +260,29 @@ def push(force):
     )
     if not force:
         _pull(repo, client, project_id)
+    
+    master_commit=repo.commit('master')
+    sync_commit=repo.commit(SYNC_BRANCH)
+    diff_index=sync_commit.diff(master_commit)
+
+
+    logging.debug("Modify files to upload :")
+    for d in diff_index.iter_change_type('M'):
+        logging.debug(d.a_path)
+
+    logging.debug("new files to upload :")
+    for d in diff_index.iter_change_type('A'):
+        logging.debug(d.a_path)
+    logging.debug("delete files :")
+    for d in diff_index.iter_change_type('D'):
+        logging.debug(d.a_path)
+    logging.debug("reanme files :")
+    for d in diff_index.iter_change_type('R'):
+        logging.debug(d.a_path)
+    logging.debug("Path type changes :")
+    for d in diff_index.iter_change_type('T'):
+        logging.debug(d.a_path)
+    
     project_data = client.get_project_data(project_id)
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
@@ -271,7 +294,7 @@ def push(force):
         # about the working dir
         # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])
         path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
-        client.upload_file(project_id, i["folder_id"], path)
+        client.upload_file(project_id, i["folder_id"], path):
 
     update_ref(repo, message="push")
 
