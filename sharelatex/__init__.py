@@ -311,15 +311,16 @@ class SyncClient:
     def delete_file(self, project_id, file_id):
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
         r = self.client.delete(url, data=self.login_data, verify=self.verify)
-
+        r.raise_for_status()
         # TODO(msimonin): return type
         return r
 
     def delete_document(self, project_id, doc_id):
         url = f"{self.base_url}/project/{project_id}/doc/{doc_id}"
         r = self.client.delete(url, data=self.login_data, verify=self.verify)
-
+        r.raise_for_status()
         # TODO(msimonin): return type
+
         return r
 
     def upload_file(self, project_id, folder_id, path):

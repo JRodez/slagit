@@ -267,6 +267,38 @@ def clone(projet_url, directory, username, password, save_password):
 the remote project with the local""",
 )
 def push(force):
+
+    def _upload(client, project_data, path):
+        # initial factorisation effort
+        logging.debug(f"Uploading {path}")
+        project_id = project_data["_id"]
+        dirname = os.path.dirname(path)
+        # TODO: that smells
+        dirname = "/" + dirname
+        # TODO encapsulate both ?
+        folder_id = client.check_or_create_folder(project_data, dirname)
+        p = f"{repo.working_dir}/{path}"
+        client.upload_file(project_id, folder_id, p)
+
+    def _delete(client, project_data, path):
+        # initial factorisation effort
+        logging.debug(f"Deleting {path}")
+        project_id = project_data["_id"]
+        dirname = os.path.dirname(path)
+        # TODO: that smells
+        dirname = "/" + dirname
+        basename = os.path.basename(path)
+        entities = walk_project_data(
+            project_data,
+            lambda x: x["folder_path"] == dirname and x["name"] == basename,
+        )
+        # there should be one
+        entity = next(entities)
+        if entity["type"] == "doc":
+            client.delete_document(project_id, entity["_id"])
+        elif entity["type"] == "file":
+            client.delete_file(project_id, entity["_id"])
+
     repo = get_clean_repo()
     base_url, project_id = refresh_project_information(repo)
     username, password = refresh_account_information(repo)
@@ -281,49 +313,27 @@ def push(force):
     diff_index = sync_commit.diff(master_commit)
 
     project_data = client.get_project_data(project_id)
+
     logging.debug("Modify files to upload :")
     for d in diff_index.iter_change_type("M"):
-        logging.debug(d.a_path)
-        dirname = os.path.dirname(d.a_path)
-        # TODO: that smells
-        dirname = "/" + dirname
-        basename = os.path.basename(d.a_path)
-        entities = walk_project_data(
-            project_data,
-            lambda x: x["folder_path"] == dirname and x["name"] == basename,
-        )
-        entity = next(entities)
-        path = f"{repo.working_dir}{entity['folder_path']}/{entity['name']}"
-        client.upload_file(project_id, entity["folder_id"], path)
+        _upload(client, project_data, d.a_path)
+
     logging.debug("new files to upload :")
     for d in diff_index.iter_change_type("A"):
-        logging.debug(d.a_path)
-        dirname = os.path.dirname(d.a_path)
-        # TODO: that smells
-        dirname = "/" + dirname
-        # TODO encapsulate both ?
-        folder_id = client.check_or_create_folder(project_data, dirname)
-        path = f"{repo.working_dir}/{d.a_path}"
-        client.upload_file(project_id, folder_id, path)
+        _upload(client, project_data, d.a_path)
+
     logging.debug("delete files :")
     for d in diff_index.iter_change_type("D"):
-        logging.debug(f"d.a_path={d.a_path}")
-        dirname = os.path.dirname(d.a_path)
-        # TODO: that smells
-        dirname = "/" + dirname
-        basename = os.path.basename(d.a_path)
-        entities = walk_project_data(
-            project_data,
-            lambda x: x["folder_path"] == dirname and x["name"] == basename,
-        )
-        entity = next(entities)
-        if entity["type"] == "doc":
-            client.delete_document(project_id, entity["_id"])
-        elif entity["type"] == "file":
-            client.delete_file(project_id, entity["_id"])
+        _delete(client, project_data, d.a_path)
+
     logging.debug("reanme files :")
     for d in diff_index.iter_change_type("R"):
-        logging.debug(d.a_path)
+        # git mv a b
+        # for us this corresponds to
+        # 1) deleting the old one (a)
+        # 2) creating the new one (b)
+        _delete(client, project_data, d.a_path)
+        _upload(client, project_data, d.b_path)
     logging.debug("Path type changes :")
     for d in diff_index.iter_change_type("T"):
         logging.debug(d.a_path)
