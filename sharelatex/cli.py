@@ -151,7 +151,20 @@ def _pull(repo, client, project_id):
     # here we assume master
     git = repo.git
     git.checkout(SYNC_BRANCH)
-    # TODO: clean repo before to make sure we're in sync with the remote
+
+    # delete all files but not .git !!!!
+    files = list(Path(repo.working_tree_dir).rglob("*"))
+    files.reverse()
+    for p in files:
+        if not str(p.relative_to(Path(repo.working_tree_dir))).startswith(".git"):
+            if p.is_dir():
+                p.rmdir()
+            else:
+                Path.unlink(p)
+
+    # TODO: try to check directly from server what file or directory
+    # is changed/delete/modify instead to reload whole project zip
+
     client.download_project(project_id)
     update_ref(repo, message="pre pull")
     git.checkout("master")
@@ -189,7 +202,7 @@ def pull():
     _pull(repo, client, project_id)
 
     # TODO(msimonin): add a decent default .gitignore ?
-    update_ref(repo, message="pull")
+    # update_ref(repo, message="pull")
 
 
 @cli.command(
@@ -262,26 +275,28 @@ def push(force):
     )
     if not force:
         _pull(repo, client, project_id)
-    
-    master_commit=repo.commit('master')
-    sync_commit=repo.commit(SYNC_BRANCH)
-    diff_index=sync_commit.diff(master_commit)
 
+    master_commit = repo.commit("master")
+    sync_commit = repo.commit(SYNC_BRANCH)
+    diff_index = sync_commit.diff(master_commit)
 
     project_data = client.get_project_data(project_id)
     logging.debug("Modify files to upload :")
-    for d in diff_index.iter_change_type('M'):
+    for d in diff_index.iter_change_type("M"):
         logging.debug(d.a_path)
         dirname = os.path.dirname(d.a_path)
         # TODO: that smells
         dirname = "/" + dirname
         basename = os.path.basename(d.a_path)
-        entities = walk_project_data(project_data, lambda x: x["folder_path"]==dirname and x["name"]==basename)
+        entities = walk_project_data(
+            project_data,
+            lambda x: x["folder_path"] == dirname and x["name"] == basename,
+        )
         entity = next(entities)
         path = f"{repo.working_dir}{entity['folder_path']}/{entity['name']}"
-        client.upload_file(project_id, entity["folder_id"], path) 
+        client.upload_file(project_id, entity["folder_id"], path)
     logging.debug("new files to upload :")
-    for d in diff_index.iter_change_type('A'):
+    for d in diff_index.iter_change_type("A"):
         logging.debug(d.a_path)
         dirname = os.path.dirname(d.a_path)
         # TODO: that smells
@@ -291,15 +306,28 @@ def push(force):
         path = f"{repo.working_dir}/{d.a_path}"
         client.upload_file(project_id, folder_id, path)
     logging.debug("delete files :")
-    for d in diff_index.iter_change_type('D'):
-        logging.debug(f"d.a_path={d.a_path} / d.b_path={d.b_path}")
+    for d in diff_index.iter_change_type("D"):
+        logging.debug(f"d.a_path={d.a_path}")
+        dirname = os.path.dirname(d.a_path)
+        # TODO: that smells
+        dirname = "/" + dirname
+        basename = os.path.basename(d.a_path)
+        entities = walk_project_data(
+            project_data,
+            lambda x: x["folder_path"] == dirname and x["name"] == basename,
+        )
+        entity = next(entities)
+        if entity["type"] == "doc":
+            client.delete_document(project_id, entity["_id"])
+        elif entity["type"] == "file":
+            client.delete_file(project_id, entity["_id"])
     logging.debug("reanme files :")
-    for d in diff_index.iter_change_type('R'):
+    for d in diff_index.iter_change_type("R"):
         logging.debug(d.a_path)
     logging.debug("Path type changes :")
-    for d in diff_index.iter_change_type('T'):
+    for d in diff_index.iter_change_type("T"):
         logging.debug(d.a_path)
-    
+
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated

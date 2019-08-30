@@ -72,7 +72,7 @@ def walk_project_data(project_data, predicate=lambda x: True):
                     yield fd
             for d in c["docs"]:
                 fd.update(d)
-                fd.update(type="file")
+                fd.update(type="doc")
                 if predicate(fd):
                     yield fd
             if len(c["folders"]) > 0:
@@ -304,6 +304,20 @@ class SyncClient:
     def get_document(self, project_id, doc_id):
         url = f"{self.base_url}/project/{project_id}/document/{doc_id}"
         r = self.client.get(url, data=self.login_data, verify=self.verify)
+
+        # TODO(msimonin): return type
+        return r
+
+    def delete_file(self, project_id, file_id):
+        url = f"{self.base_url}/project/{project_id}/file/{file_id}"
+        r = self.client.delete(url, data=self.login_data, verify=self.verify)
+
+        # TODO(msimonin): return type
+        return r
+
+    def delete_document(self, project_id, doc_id):
+        url = f"{self.base_url}/project/{project_id}/doc/{doc_id}"
+        r = self.client.delete(url, data=self.login_data, verify=self.verify)
 
         # TODO(msimonin): return type
         return r
