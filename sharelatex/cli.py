@@ -336,7 +336,11 @@ def push(force):
         _upload(client, project_data, d.b_path)
     logging.debug("Path type changes :")
     for d in diff_index.iter_change_type("T"):
-        logging.debug(d.a_path)
+        # This one is maybe
+        # 1) deleting the old one (a)
+        # 2) creating the new one (b)
+        _delete(client, project_data, d.a_path)
+        _upload(client, project_data, d.b_path)
 
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
