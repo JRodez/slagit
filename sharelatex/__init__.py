@@ -381,11 +381,11 @@ class SyncClient:
         except:
             logger.debug(f"{folder_path} not found, creation planed")
 
-        parent_folder = os.path.dirname(folder_path)
         parent_id = self.check_or_create_folder(metadata, os.path.dirname(folder_path))
         new_folder = self.create_folder(
             metadata["_id"], parent_id, os.path.basename(folder_path)
         )
+        # This returns the id of the deepest folder
         return new_folder["_id"]
 
     def upload(self, path):

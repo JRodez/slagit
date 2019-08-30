@@ -6,7 +6,8 @@ import time
 
 import getpass
 
-from sharelatex import SyncClient, walk_files
+from sharelatex import SyncClient, walk_files, walk_project_data
+
 
 import click
 from git import Repo
@@ -150,6 +151,7 @@ def _pull(repo, client, project_id):
     # here we assume master
     git = repo.git
     git.checkout(SYNC_BRANCH)
+    # TODO: clean repo before to make sure we're in sync with the remote
     client.download_project(project_id)
     update_ref(repo, message="pre pull")
     git.checkout("master")
@@ -266,16 +268,31 @@ def push(force):
     diff_index=sync_commit.diff(master_commit)
 
 
+    project_data = client.get_project_data(project_id)
     logging.debug("Modify files to upload :")
     for d in diff_index.iter_change_type('M'):
         logging.debug(d.a_path)
-
+        dirname = os.path.dirname(d.a_path)
+        # TODO: that smells
+        dirname = "/" + dirname
+        basename = os.path.basename(d.a_path)
+        entities = walk_project_data(project_data, lambda x: x["folder_path"]==dirname and x["name"]==basename)
+        entity = next(entities)
+        path = f"{repo.working_dir}{entity['folder_path']}/{entity['name']}"
+        client.upload_file(project_id, entity["folder_id"], path) 
     logging.debug("new files to upload :")
     for d in diff_index.iter_change_type('A'):
         logging.debug(d.a_path)
+        dirname = os.path.dirname(d.a_path)
+        # TODO: that smells
+        dirname = "/" + dirname
+        # TODO encapsulate both ?
+        folder_id = client.check_or_create_folder(project_data, dirname)
+        path = f"{repo.working_dir}/{d.a_path}"
+        client.upload_file(project_id, folder_id, path)
     logging.debug("delete files :")
     for d in diff_index.iter_change_type('D'):
-        logging.debug(d.a_path)
+        logging.debug(f"d.a_path={d.a_path} / d.b_path={d.b_path}")
     logging.debug("reanme files :")
     for d in diff_index.iter_change_type('R'):
         logging.debug(d.a_path)
@@ -283,18 +300,17 @@ def push(force):
     for d in diff_index.iter_change_type('T'):
         logging.debug(d.a_path)
     
-    project_data = client.get_project_data(project_id)
     # First iteration, we push we have in the project data
     # limitations: modification on the local tree (folder, file creation) will
     # not be propagated
 
-    iter = walk_files(project_data)
-    for i in iter:
-        # the / at the beginnning of i["folder_path"] makes the join to forget
-        # about the working dir
-        # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])
-        path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
-        client.upload_file(project_id, i["folder_id"], path):
+    # iter = walk_files(project_data)
+    # for i in iter:
+    #     # the / at the beginnning of i["folder_path"] makes the join to forget
+    #     # about the working dir
+    #     # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])
+    #     path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
+    #     client.upload_file(project_id, i["folder_id"], path)
 
     update_ref(repo, message="push")
 
