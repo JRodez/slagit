@@ -19,13 +19,6 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://sharelatex.irisa.fr"
 
 
-def browse_project(client, login_data, project_id, path="."):
-    """NOTE(msimonin): je me rappelle pas ce que c'est censé faire."""
-    r = client.post(LOGIN_URL, data=login_data, verify=True)
-    project_url = "{base}/project/{pid}".format(base=BASE_URL, pid=project_id)
-    r = client.get(project_url)
-
-
 def walk_project_data(project_data, predicate=lambda x: True):
     """Iterate on the project entities (folders, files).
 
@@ -147,7 +140,7 @@ class SyncClient:
     @classmethod
     def from_yaml(cls, *, filepath=None):
         if not filepath:
-            filepath = Path(os.environ.get("HOME"), ".sync_sharelatex.yaml")
+            filepath = Path(os.environ.get("HOME"), ".sharelatex.yaml")
         with open(filepath, "r") as f:
             conf = yaml.load(f, Loader=yaml.BaseLoader)
             return cls(**conf)

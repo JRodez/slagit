@@ -20,6 +20,13 @@ SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
 
 
+PROMPT_BASE_URL = "Base url: "
+PROMPT_PROJECT_ID = "Project id: "
+PROMPT_USERNAME = "Username: "
+PROMPT_PASSWORD = "Password: "
+PROMPT_CONFIRM = "Do you want to save in git config (in clear) your password (y/n) ?"
+
+
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -68,7 +75,7 @@ def get_clean_repo(path=None):
     # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         print(repo.git.status())
-        raise Exception("The repo isn't clean")
+        raise Exception("The repo isn't clean.")
     return repo
 
 
@@ -76,13 +83,12 @@ def refresh_project_information(repo, base_url=None, project_id=None):
     need_save = True
     config = Config(repo)
     if base_url == None:
-        #            u = reader.get_value(SLATEX_SECTION, "baseUrl")
         u = config.get_value(SLATEX_SECTION, "baseUrl")
         if u:
             base_url = u
             need_save = False
         else:
-            base_url = input("base url :")
+            base_url = input(PROMPT_BASE_URL)
             need_save = True
     if project_id == None:
         p = config.get_value(SLATEX_SECTION, "projectId")
@@ -90,7 +96,7 @@ def refresh_project_information(repo, base_url=None, project_id=None):
             project_id = p
             need_save = False
         else:
-            project_id = input("project id :")
+            project_id = input(PROMPT_PROJECT_ID)
             need_save = True
     if need_save:
         config.set_value("slatex", "baseUrl", base_url)
@@ -107,7 +113,7 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
             username = u
             need_save = False
         else:
-            username = input("username :")
+            username = input(PROMPT_USERNAME)
             need_save = True
     if password == None:
         p = config.get_value(SLATEX_SECTION, "password")
@@ -115,11 +121,9 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
             password = p
             need_save = False
         else:
-            password = getpass.getpass("password:")
+            password = getpass.getpass(PROMPT_PASSWORD)
             if save_password == None:
-                r = input(
-                    "do you want to save in git config (in clair) your password (y/n) ?"
-                )
+                r = input(PROMPT_CONFIRM)
                 if r == "Y" or r == "y":
                     save_password = True
             need_save = True
@@ -263,11 +267,10 @@ def clone(projet_url, directory, username, password, save_password):
 @click.option(
     "--force",
     "-f",
-    help="""Push without attempting to resync
-the remote project with the local""",
+    help="""Push to remote server. A merge wil occur if the
+    local and remote version differ.""",
 )
 def push(force):
-
     def _upload(client, project_data, path):
         # initial factorisation effort
         logging.debug(f"Uploading {path}")
@@ -341,18 +344,6 @@ def push(force):
         # 2) creating the new one (b)
         _delete(client, project_data, d.a_path)
         _upload(client, project_data, d.b_path)
-
-    # First iteration, we push we have in the project data
-    # limitations: modification on the local tree (folder, file creation) will
-    # not be propagated
-
-    # iter = walk_files(project_data)
-    # for i in iter:
-    #     # the / at the beginnning of i["folder_path"] makes the join to forget
-    #     # about the working dir
-    #     # path = os.path.join(repo.working_dir, i["folder_path"], i["name"])
-    #     path = f"{repo.working_dir}{i['folder_path']}/{i['name']}"
-    #     client.upload_file(project_id, i["folder_id"], path)
 
     update_ref(repo, message="push")
 
