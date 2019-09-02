@@ -1,7 +1,14 @@
-WORK IN PROGRESS: Pull/Push sharelatex project from/to GIT
+Links
+-----
 
-The code is currently experimental and under development.
-Use it with caution.
+- Source: https://gitlab.inria.fr/sed-rennes/sharelatex
+- Documentation: https://sed-rennes.gitlabpages.inria.fr/sharelatex/python-sharelatex
+- Mattermost: https://mattermost.irisa.fr/sed-rba/channels/sharelatex-users
+
+.. warning::
+
+    The code is currently experimental and under development.
+    Use it with caution.
 
 
 Installation
@@ -19,11 +26,40 @@ Installation
     pip install [-e] .
 
 
-Example
--------
+Quick examples
+--------------
+
+Display the possible actions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`slatex` is a subcommand of git that calls the ``git-slatex`` programm shipped by this project.
+
+.. code:: bash
+
+    $) git slatex
+
+    Usage: git-slatex [OPTIONS] COMMAND [ARGS]...
+
+    Options:
+      --help  Show this message and exit.
+
+    Commands:
+      clone    Get (clone) the files from sharelatex projet URL and crate a...
+      compile  Compile the remote version of a project
+      new      Upload the current directory as a new sharelatex project
+      pull     Pull the files from sharelatex.
+      push     Push the commited changes back to sharelatex
+
+
+For instance you can get the help on a specific sub-command with the following:
+
+.. code:: bash
+
+   git slatex clone --help
+
 
 Get an existing project on slatex
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: bash
 
