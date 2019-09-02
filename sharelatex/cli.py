@@ -326,7 +326,7 @@ def push(force):
     for d in diff_index.iter_change_type("D"):
         _delete(client, project_data, d.a_path)
 
-    logging.debug("reanme files :")
+    logging.debug("rename files :")
     for d in diff_index.iter_change_type("R"):
         # git mv a b
         # for us this corresponds to
