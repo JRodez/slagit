@@ -57,7 +57,7 @@ For instance you can get the help on a specific sub-command with the following:
 
 
 Get an existing project on slatex
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: bash
 
@@ -90,7 +90,7 @@ Pull changes from sharelatex to local (like a git pull)
 
 
 .. code:: bash
-    
+
     # Pull changes from sharelatex
     git slatex pull
 
@@ -101,5 +101,5 @@ Create a remote project from a local git
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: bash
-   
+
    git slatex new <base_server_URL> <new_project_name>
