@@ -8,31 +8,23 @@ import getpass
 
 from sharelatex import SyncClient, walk_files, walk_project_data
 
-
 import click
 from git import Repo
 from git.config import cp
 from zipfile import ZipFile
 
+
 logger = logging.getLogger(__name__)
-SHARELATEX_FILE = ".sharelatex"
+
+logging.basicConfig(level=logging.DEBUG)
+
 SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
-
-
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save in git config (in clear) your password (y/n) ?"
-
-
-logging.basicConfig(level=logging.DEBUG)
-
-
-@click.group()
-def cli():
-    pass
 
 
 class Config:
@@ -42,6 +34,16 @@ class Config:
         self.repo = repo
 
     def set_value(self, section, key, value, config_level="repository"):
+        """Set a config value in a specific section.
+
+        Note:
+            If the section doesn't exist it is created.
+
+        Args:
+            section (str): the section name
+            key (str): the key to set
+            value (str): the value to set
+        """
         with self.repo.config_writer(config_level) as c:
             try:
                 c.set_value(section, key, value)
@@ -55,6 +57,18 @@ class Config:
                 c.release()
 
     def get_value(self, section, key, default=None, config_level=None):
+        """Get a config value in a specific section of the config.
+
+        Note: this returns the associated value if found. Otherwise it returns the default value.
+
+        Args:
+            section (str): the section name
+            key (str): the key to set
+            default (str): the defaut value to apply
+            config_level (str): the config level to look for
+                see https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.config_level 
+
+        """
         with self.repo.config_reader(config_level) as c:
             try:
                 value = c.get_value(section, key)
@@ -71,6 +85,22 @@ class Config:
 
 
 def get_clean_repo(path=None):
+    """Create the git.repo object from a directory.
+
+    Note: 
+    
+        This initialize the git repository and fails if the repo isn't clean.
+        This is run prior to many operations to make sure there isn't any untracked/uncomitted files in the repo.
+
+    Args:
+        path (str): the path of the repository in the local file system.
+
+    Returns:
+        a git.Repo data-structure.
+
+    Raises:
+        Exception if the repo isn't clean
+    """
     repo = Repo.init(path=path)
     # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
@@ -80,6 +110,18 @@ def get_clean_repo(path=None):
 
 
 def refresh_project_information(repo, base_url=None, project_id=None):
+    """Get and/or set the project information in/from the git config.
+    
+    If the information is set in the config it is retrieved, otherwise it is set.
+
+    Args:
+        repo (git.Repo): The repo object to read the config from
+        base_url (str): the base_url to consider
+        project_id (str): the project_id to consider
+
+    Returns:
+        tupe (base_url, project_id) after the refresh occurs.
+    """
     need_save = True
     config = Config(repo)
     if base_url == None:
@@ -105,6 +147,20 @@ def refresh_project_information(repo, base_url=None, project_id=None):
 
 
 def refresh_account_information(repo, username=None, password=None, save_password=None):
+    """Get and/or set the account information in/from the git config.
+    
+    If the information is set in the config it is retrieved, otherwise it is set.
+    Note that no further encryption of the password is offered here.
+
+    Args:
+        repo (git.Repo): The repo object to read the config from
+        username (str): The username to consider
+        password (str): The password to consider
+        save_password (str): The project_id to consider
+
+    Returns:
+        tupe (username, password) after the refresh occurs.
+    """
     need_save = True
     config = Config(repo)
     if username == None:
@@ -134,6 +190,11 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
 
 
 def update_ref(repo, message="update_ref"):
+    """Makes the remote pointer to point on the latest revision we have.
+    
+    This is called after a successfull clone, push, new. In short when we 
+    are sure the remote and the local are in sync.
+    """
     git = repo.git
 
     git.add(".")
@@ -141,6 +202,11 @@ def update_ref(repo, message="update_ref"):
     repo.index.commit(f"{message}")
     sync_branch = repo.create_head(SYNC_BRANCH, force=True)
     sync_branch.commit = "HEAD"
+
+
+@click.group()
+def cli():
+    pass
 
 
 def _pull(repo, client, project_id):
@@ -190,10 +256,14 @@ def compile(project_id):
 
 
 @cli.command(
-    help="""
-Pull the files from sharelatex.
-(Note this uses the current directory)
-"""
+    help=f"""Pull the files from sharelatex.
+    
+    In the current repository, it works as follows:
+    
+    1. Pull in ``{SYNC_BRANCH}`` branch the latest version of the remote project\n
+    2. Attempt a merge in the working branch. If the merge can't be done automatically, 
+       you will be required to fix the conflixt manually
+    """
 )
 def pull():
     repo = Repo()
@@ -205,34 +275,43 @@ def pull():
     # Fail if the repo is clean
     _pull(repo, client, project_id)
 
-    # TODO(msimonin): add a decent default .gitignore ?
-    # update_ref(repo, message="pull")
-
 
 @cli.command(
-    help="""
-Get (clone) the files from sharelatex projet URL and crate a local git depot.
-(Note this uses the current directory)
+    help=f"""
+Get (clone) the files from sharelatex projet URL and create a local git depot.
+
+The optionnal target directory will be created if it doesn't exist. The command 
+fails if it already exists. Connection informations can be saved in the local git 
+config.
+
+It works as follow:
+
+    1. Download and unzip the remote project in the target directory\n
+    2. Initialize a fresh git repository\n
+    3. Create an extra ``{SYNC_BRANCH}`` to keep track of the remote versions of the project.
+       This branch must not be updated manually.
 """
 )
-@click.argument("projet_url", default="")
-@click.argument("directory", default="")
+@click.argument(
+    "projet_url", default=""
+)  # , help="The project url (https://sharelatex.irisa.fr/1234)")
+@click.argument("directory", default="")  # , help="The target directory")
 @click.option(
     "--username",
     "-u",
     default=None,
-    help="""username for sharelatex server account, if user is not provided, it will be asked online""",
+    help="""Username for sharelatex server account, if user is not provided, it will be asked online""",
 )
 @click.option(
     "--password",
     "-p",
     default=None,
-    help="""user password for sharelatex server, if password is not provided, it will be asked online""",
+    help="""User password for sharelatex server, if password is not provided, it will be asked online""",
 )
 @click.option(
     "--save-password/--no-save-password",
     default=None,
-    help="""save user account information (clear password) in git local config""",
+    help="""Save user account information (clear password) in git local config""",
 )
 def clone(projet_url, directory, username, password, save_password):
     # TODO : robust parse regexp
@@ -263,13 +342,17 @@ def clone(projet_url, directory, username, password, save_password):
     update_ref(repo, message="clone")
 
 
-@cli.command(help="Push the commited changes back to sharelatex")
-@click.option(
-    "--force",
-    "-f",
-    help="""Push to remote server. A merge wil occur if the
-    local and remote version differ.""",
+@cli.command(
+    help=f"""Synchronise the local copy with the remote version.
+    
+This works as follow:
+
+1. The remote version is pulled (see the :program:`pull` command)\n
+2. After the merge succeed, the merged version is uploaded back to the remote server.\n
+   Note that only the files that have changed (modified/added/removed) will be uploaded. 
+"""
 )
+@click.option("--force", "-f", help="Force push")
 def push(force):
     def _upload(client, project_data, path):
         # initial factorisation effort
@@ -348,7 +431,13 @@ def push(force):
     update_ref(repo, message="push")
 
 
-@cli.command(help="Upload the current directory as a new sharelatex project")
+@cli.command(
+    help="""
+Upload the current directory as a new sharelatex project.
+
+This litteraly creates a new remote project in sync with the local version.
+"""
+)
 @click.argument("projectname")
 @click.argument("base_url")
 @click.option(

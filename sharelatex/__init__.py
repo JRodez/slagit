@@ -23,9 +23,9 @@ def walk_project_data(project_data, predicate=lambda x: True):
     """Iterate on the project entities (folders, files).
 
     Args:
-        project_data (dict): the project data as retrieved by
+        project_data (dict): The project data as retrieved by
             :py:meth:`sharelatex.SyncClient.get_project_data`
-        predicate: lambda to filter the entry
+        predicate (lambda): Lambda to filter the entry
             an entry is a dictionnary as in
             {"folder_id": <id of the current folder>,
              "folder_path": <complete path of the folder /a/folder/>,
@@ -41,8 +41,8 @@ def walk_project_data(project_data, predicate=lambda x: True):
         """Iterate on the project structure
 
         Args:
-            current (dict): current folder representation
-            parent (str): path of the parent folder
+            current (dict): Current folder representation
+            parent (str): Path of the parent folder
         """
         for c in current:
             if c["name"] == "rootFolder":
@@ -78,9 +78,9 @@ def lookup_folder(project_data, folder_path):
     """Lookup a folder by its path
 
     Args:
-        project_data (dict): the project data as retrieved by
+        project_data (dict): The project data as retrieved by
             :py:meth:`sharelatex.SyncClient.get_project_data`
-        folder_path (str): the path of the folder. Must start with ``/``.
+        folder_path (str): The path of the folder. Must start with ``/``
 
     Returns:
         The folder id (str)
@@ -98,8 +98,11 @@ def walk_files(project_data):
     """Iterates on the file only of a project.
 
     Args:
-        project_data (dict): the project data as retrieved by
+        project_data (dict): The project data as retrieved by
             :py:meth:`sharelatex.SyncClient.get_project_data`
+
+    Raises:
+        StopIteration if the file isn't found
     """
     return walk_project_data(project_data, lambda x: x["type"] == "file")
 
@@ -112,9 +115,9 @@ class SyncClient:
 
 
         Args:
-            base_url (str): base url of the sharelatex server
-            username (str): username of the user (the email)
-            password (str): password of the user
+            base_url (str): Base url of the sharelatex server
+            username (str): Username of the user (the email)
+            password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
         """
 
@@ -139,6 +142,30 @@ class SyncClient:
 
     @classmethod
     def from_yaml(cls, *, filepath=None):
+        """Instantiate a new client from a configuration yaml file.
+
+        Note:
+            The yaml dictionnary is injected as kwargs of init method.
+
+        Examples:
+            
+            .. code:: bash
+
+                # from your shell
+                echo '
+                username: MYLOGIN
+                password: MYPASSWORD
+                ' > ~/.sharelatex.yaml
+
+                # from python
+                client = SyncClient.from_yaml()
+
+        Args:
+            filepath (str): Path to the configuration file
+
+        Returns:
+            A newly created instance of the client.
+        """
         if not filepath:
             filepath = Path(os.environ.get("HOME"), ".sharelatex.yaml")
         with open(filepath, "r") as f:
@@ -152,7 +179,7 @@ class SyncClient:
         will open a websocket connection to the server to get the informations.
 
         Args:
-            project_id (str): the id of the project
+            project_id (str): The id of the project
         """
 
         url = f"{self.base_url}/project/{project_id}"
@@ -197,23 +224,21 @@ class SyncClient:
         # thuis must be a valid dict (eg not None)
         return storage.project_data
 
-    def get_project_iter(self, project_id):
-        """Returns a iterator on the files of a project."""
-
-        project_data = self.get_project_data(project_id)
-        return walk_project_data(current, lambda x: x["type"] == "file")
-
     def download_project(self, project_id, *, path=".", keep_zip=False):
         """Download and unzip the project.
 
         Beware that this will overwrite any existing project file under path.
 
         Args:
-            project_id (str): the id of the project to download
-            path (Path): a valid path where the files will be saved.
+            project_id (str): The id of the project to download
+            path (Path): A valid path where the files will be saved
+
+        Raises:
+            Exception if the project can't be downloaded/unzipped.
         """
         url = f"{self.base_url}/project/{project_id}/download/zip"
         r = self.client.get(url, stream=True)
+        r.raise_for_status()
 
         logger.info(f"Downloading {project_id} in {path}")
         target_dir = Path(path)
@@ -231,15 +256,17 @@ class SyncClient:
             target_path.unlink()
 
     def get_doc(self, project_id, doc_id):
-
         """Get a doc from a project .
 
         This mimics the browser behaviour when opening the project editor. This
         will open a websocket connection to the server to get the informations.
 
         Args:
-            project_id (str): the id of the project
-            doc_id (str): the id of the doc
+            project_id (str): The id of the project
+            doc_id (str): The id of the doc
+
+        Returns:
+            A string corresponding to the document.
         """
 
         url = f"{self.base_url}/project/{project_id}"
@@ -288,13 +315,38 @@ class SyncClient:
         return "\n".join(storage.doc_data)
 
     def get_file(self, project_id, file_id):
+        """Get an individual file (e.g image).
+
+        Args:
+            project_id (str): The project id of the project where the file is
+            file_id (str): The file id
+
+        Returns:
+            requests response
+
+        Raises:
+            Exception if the file can't be downloaded
+        """
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
         r = self.client.get(url, data=self.login_data, verify=self.verify)
-
+        r.raise_for_status()
         # TODO(msimonin): return type
         return r
 
     def get_document(self, project_id, doc_id):
+        """Get a single document (e.g tex file).
+
+        Args:
+            project_id (str): The project id of the project where the document 
+                is
+            doc_id (str): The document id
+
+        Returns:
+            requests response
+
+        Raises:
+            Exception if the file can't be downloaded
+        """
         url = f"{self.base_url}/project/{project_id}/document/{doc_id}"
         r = self.client.get(url, data=self.login_data, verify=self.verify)
 
@@ -302,6 +354,18 @@ class SyncClient:
         return r
 
     def delete_file(self, project_id, file_id):
+        """Delete a single file (e.g image).
+
+        Args:
+            project_id (str): The project id of the project where the file is
+            file_id (str): The file id
+
+        Returns:
+            requests response
+
+        Raises:
+            Exception if the file can't be deleted
+        """
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
         r = self.client.delete(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
@@ -309,6 +373,18 @@ class SyncClient:
         return r
 
     def delete_document(self, project_id, doc_id):
+        """Delete a single document (e.g tex file).
+
+        Args:
+            project_id (str): The project id of the project where the document is
+            doc_id (str): The document id
+
+        Returns:
+            requests response
+
+        Raises:
+            Exception if the file can't be deleted
+        """
         url = f"{self.base_url}/project/{project_id}/doc/{doc_id}"
         r = self.client.delete(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
@@ -320,9 +396,15 @@ class SyncClient:
         """Upload a file to sharelatex.
 
         Args:
-            project_id (str): the project id
-            folder_id (str): the parent folder
-            path (str): local path to the file
+            project_id (str): The project id
+            folder_id (str): The parent folder
+            path (str): Local path to the file
+
+        Returns:
+            requests response
+
+        Raises:
+            Exception if the file can't be uploaded
         """
         url = f"{self.base_url}/project/{project_id}/upload"
         filename = os.path.basename(path)
@@ -377,11 +459,11 @@ class SyncClient:
         Make sure the metadata are up-to-date when calling this.
 
         Args:
-            metadata (dict): the sharelatex metadata as a structure basis
-            folder_path (str): the folder path
+            metadata (dict): The sharelatex metadata as a structure basis
+            folder_path (str): The folder path
 
         Returns:
-            The folder id
+            The folder id of the deepest folder created.
         """
         try:
             folder = lookup_folder(metadata, folder_path)
@@ -400,7 +482,13 @@ class SyncClient:
         """Upload a project (zip) to sharelatex.
 
         Args:
-            path (str): path to the zip file of a project.
+            path (str): Path to the zip file of a project.
+
+        Returns:
+             response (dict) status of the request as returned by sharelatex
+
+        Raises:
+             Exception if something is wrong with the zip of the upload.
         """
         url = f"{self.base_url}/project/new/upload"
         filename = os.path.basename(path)
@@ -425,9 +513,14 @@ class SyncClient:
         Note that this is run against the remote version not the local one.
 
         Args:
-            project_id (str): the project id of the project to compile
-        """
+            project_id (str): The project id of the project to compile
 
+        Returns:
+            response (dict) status of the request as returned by sharelatex
+
+        Raises:
+             Exception if something is wrong with the compilation
+        """
         url = f"{self.base_url}/project/{project_id}/compile"
 
         data = {"_csrf": self.csrf}
