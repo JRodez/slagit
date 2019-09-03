@@ -107,6 +107,32 @@ def walk_files(project_data):
     return walk_project_data(project_data, lambda x: x["type"] == "file")
 
 
+def check_error(json):
+    """Check if there's an error in the returned json from sharelatex.
+
+    This assumes json to be a dict like the following
+    {
+        "message":
+         {
+              "text": "Your email or password is incorrect. Please try again",
+              "type": "error"
+         }
+    }
+
+    Args:
+        json (dict): message returned by the sharelatex server
+
+    Raise:
+        Exception with the corresponding text in the message
+    """
+    message = json.get("message")
+    if message is None:
+        return
+    t = message.get("type")
+    if t is not None and t == "error":
+        raise Exception(message.get("text", "Unknown error"))
+
+
 class SyncClient:
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
         """Creates the client.
@@ -134,9 +160,9 @@ class SyncClient:
 
         # login
         self.login_data = {"email": username, "password": password, "_csrf": self.csrf}
-
         _r = self.client.post(login_url, data=self.login_data, verify=self.verify)
         _r.raise_for_status()
+        check_error(_r.json())
         self.login_data.pop("password")
         self.sharelatex_sid = _r.cookies["sharelatex.sid"]
 
@@ -148,7 +174,7 @@ class SyncClient:
             The yaml dictionnary is injected as kwargs of init method.
 
         Examples:
-            
+
             .. code:: bash
 
                 # from your shell
