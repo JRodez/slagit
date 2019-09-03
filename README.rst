@@ -4,6 +4,7 @@ Links
 - Source: https://gitlab.inria.fr/sed-rennes/sharelatex
 - Documentation: https://sed-rennes.gitlabpages.inria.fr/sharelatex/python-sharelatex
 - Mattermost: https://mattermost.irisa.fr/sed-rba/channels/sharelatex-users
+- Pypi: https://pypi.org/project/sharelatex/
 
 
 **The code is currently experimental and under development. Use it with caution.**
