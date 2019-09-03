@@ -4,7 +4,7 @@ Changelog
 0.1.1
 -----
 
-- TODO
+- Fails early in case of wrong credentials
 
 0.1.0
 -----
