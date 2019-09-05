@@ -1,6 +1,11 @@
 Changelog
 ===========
 
+0.1.2
+-----
+
+- First version of share project fonctions
+
 0.1.1
 -----
 

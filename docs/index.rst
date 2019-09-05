@@ -6,6 +6,7 @@ Reference Documentation
 
    cli.rst
    api.rst
+   changelog.rst
 
 
 Python-sharelatex primer
