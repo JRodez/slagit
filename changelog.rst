@@ -1,6 +1,11 @@
 Changelog
 ===========
 
+0.2.1
+-----
+
+Doc: some fixes/additions
+
 0.2.0
 -----
 
