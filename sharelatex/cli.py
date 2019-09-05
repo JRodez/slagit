@@ -255,6 +255,27 @@ def compile(project_id):
     print(response)
 
 
+@cli.command(help="Send a invitation to share (edit/view) a project")
+@click.argument("email", default="")
+@click.option("--project_id", default=None)
+@click.option(
+    "--can-edit/--read-only",
+    default=True,
+    help="""Authorize user to edit the project or not""",
+)
+def share(project_id, email, can_edit):
+    repo = Repo()
+    base_url, project_id = refresh_project_information(repo,project_id=project_id)
+    username, password = refresh_account_information(repo)
+    client = SyncClient(
+        base_url=base_url, username=username, password=password, verify=True
+    )
+
+    response = client.share(project_id, email, can_edit)
+    print(response)
+
+
+
 @cli.command(
     help=f"""Pull the files from sharelatex.
     

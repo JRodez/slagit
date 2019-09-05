@@ -359,6 +359,7 @@ class SyncClient:
         # TODO(msimonin): return type
         return r
 
+     # TODO: check if this fonction is still usefull (in regard to get_doc)
     def get_document(self, project_id, doc_id):
         """Get a single document (e.g tex file).
 
@@ -531,6 +532,30 @@ class SyncClient:
         response = r.json()
         if not response["success"]:
             raise Exception(f"Uploading {path} fails")
+        return response
+
+    def share(self, project_id, email, can_edit=True):
+        """Send a invitation to share (edit/view) a project.
+
+        Args:
+            project_id (str): The project id of the project to share
+            email (str): Email of the recipient of the invitation
+            can_edit (boolean):True (resp. False) gives read/write (resp. read-only) access to the project 
+
+        Returns:
+            response (dict) status of the request as returned by sharelatex
+
+        Raises:
+             Exception if something is wrong with the compilation
+        """
+        url = f"{self.base_url}/project/{project_id}/invite"
+        data = {
+            "email":email,
+            "privileges": "readAndWrite" if can_edit else "readOnly",
+            "_csrf": self.csrf}
+        r = self.client.post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        response = r.json()
         return response
 
     def compile(self, project_id):
