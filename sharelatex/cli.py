@@ -12,7 +12,7 @@ import click
 from git import Repo
 from git.config import cp
 from zipfile import ZipFile
-
+import keyring
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +24,19 @@ PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
-PROMPT_CONFIRM = "Do you want to save in git config (in clear) your password (y/n) ?"
-
+PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
 
 class Config:
     """Handle gitconfig read/write operations in a transparent way."""
 
     def __init__(self, repo):
         self.repo = repo
+        self.keyring= keyring.get_keyring()
+
+    def get_password(self, service, username):
+        return self.keyring.get_password(service, username)
+    def set_password(self, service, username, password):
+        self.keyring.set_password(service, username, password)
 
     def set_value(self, section, key, value, config_level="repository"):
         """Set a config value in a specific section.
@@ -50,7 +55,7 @@ class Config:
             except cp.NoSectionError as e:
                 # No section is found, we create a new one
                 logging.debug(e)
-                c.set_value(SLATEX_SECTION, "init", "")
+                c.set_value(section, "init", "")
             except Exception as e:
                 raise e
             finally:
@@ -141,8 +146,8 @@ def refresh_project_information(repo, base_url=None, project_id=None):
             project_id = input(PROMPT_PROJECT_ID)
             need_save = True
     if need_save:
-        config.set_value("slatex", "baseUrl", base_url)
-        config.set_value("slatex", "projectId", project_id)
+        config.set_value(SLATEX_SECTION, "baseUrl", base_url)
+        config.set_value(SLATEX_SECTION, "projectId", project_id)
     return base_url, project_id
 
 
@@ -156,13 +161,16 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
         repo (git.Repo): The repo object to read the config from
         username (str): The username to consider
         password (str): The password to consider
-        save_password (str): The project_id to consider
+        save_password (boolean): True for save user account information (in OS 
+                                 kayring system) if needed
 
     Returns:
         tupe (username, password) after the refresh occurs.
     """
     need_save = True
     config = Config(repo)
+    base_url = config.get_value(SLATEX_SECTION, "baseUrl")
+
     if username == None:
         u = config.get_value(SLATEX_SECTION, "username")
         if u:
@@ -172,7 +180,7 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
             username = input(PROMPT_USERNAME)
             need_save = True
     if password == None:
-        p = config.get_value(SLATEX_SECTION, "password")
+        p = config.get_password(base_url, username)
         if p:
             password = p
             need_save = False
@@ -185,7 +193,7 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
             need_save = True
     if save_password and need_save:
         config.set_value(SLATEX_SECTION, "username", username)
-        config.set_value(SLATEX_SECTION, "password", password)
+        config.set_password(base_url, username, password)
     return username, password
 
 
@@ -315,7 +323,7 @@ It works as follow:
 )
 @click.argument(
     "projet_url", default=""
-)  # , help="The project url (https://sharelatex.irisa.fr/1234)")
+)  # , help="The project url (https://sharelatex.irisa.fr/1234567890)")
 @click.argument("directory", default="")  # , help="The target directory")
 @click.option(
     "--username",
@@ -332,7 +340,7 @@ It works as follow:
 @click.option(
     "--save-password/--no-save-password",
     default=None,
-    help="""Save user account information (clear password) in git local config""",
+    help="""Save user account information (in OS keyring system)""",
 )
 def clone(projet_url, directory, username, password, save_password):
     # TODO : robust parse regexp
@@ -348,11 +356,11 @@ def clone(projet_url, directory, username, password, save_password):
     directory.mkdir(parents=True, exist_ok=False)
 
     repo = get_clean_repo(path=directory)
+
+    base_url, project_id = refresh_project_information(repo, base_url, project_id)
     username, password = refresh_account_information(
         repo, username, password, save_password
     )
-
-    base_url, project_id = refresh_project_information(repo, base_url, project_id)
 
     client = SyncClient(
         base_url=base_url, username=username, password=password, verify=True
