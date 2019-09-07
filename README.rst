@@ -30,6 +30,13 @@ Installation
     pip install [-e] .
 
 
+Note on passwords management
+----------------------------
+
+Passwords are stored in your keyring service (Keychain, Kwallet ...) thanks to
+the `keyring <https://pypi.org/project/keyring/>`_ library. Please refer to the
+dedicated documentation for more information.
+
 Quick examples
 --------------
 
