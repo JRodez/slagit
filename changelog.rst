@@ -1,10 +1,15 @@
 Changelog
 ===========
 
+0.3.0
+-----
+
+- Passwords are now stored in the keyring system
+
 0.2.1
 -----
 
-Doc: some fixes/additions
+- Doc: some fixes/additions
 
 0.2.0
 -----
