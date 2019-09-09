@@ -16,6 +16,7 @@ from socketIO_client import SocketIO, BaseNamespace
 
 logger = logging.getLogger(__name__)
 BASE_URL = "https://sharelatex.irisa.fr"
+USER_AGENT = "python-sharelatex"
 
 
 def walk_project_data(project_data, predicate=lambda x: True):
@@ -149,19 +150,23 @@ class SyncClient:
         self.base_url = base_url
         self.verify = verify
 
+        # Used in _get, _post... to add common headers
+        self.headers = {"user-agent": USER_AGENT}
+
         # build the client and login
         self.client = requests.session()
         login_url = "{}/login".format(self.base_url)
 
         # Retrieve the CSRF token first
-        r = self.client.get(login_url, verify=True)
+        r = self._get(login_url, verify=True)
         self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
 
         # login
         self.login_data = {"email": username, "password": password, "_csrf": self.csrf}
-        _r = self.client.post(login_url, data=self.login_data, verify=self.verify)
+        _r = self._post(login_url, data=self.login_data, verify=self.verify)
         _r.raise_for_status()
         check_error(_r.json())
+
         self.login_data.pop("password")
         self.sharelatex_sid = _r.cookies["sharelatex.sid"]
 
@@ -196,12 +201,14 @@ class SyncClient:
         def on_connection_rejected(*args):
             logger.debug("[connectionRejected]  oh !!!")
 
+        headers = {"Referer": url}
+        headers.update(self.headers)
         with SocketIO(
             self.base_url,
             verify=self.verify,
             Namespace=Namespace,
             cookies={"sharelatex.sid": self.sharelatex_sid},
-            headers={"Referer": url},
+            headers=headers,
         ) as socketIO:
 
             def on_connection_accepted(*args):
@@ -217,6 +224,23 @@ class SyncClient:
         # thuis must be a valid dict (eg not None)
         return storage.project_data
 
+    def _request(self, verb, url, *args, **kwargs):
+        headers = kwargs.get("headers", {})
+        headers.update(self.headers)
+        kwargs["headers"] = headers
+        r = self.client.request(verb, url, *args, **kwargs)
+        r.raise_for_status()
+        return r
+
+    def _get(self, url, *args, **kwargs):
+        return self._request("GET", url, *args, **kwargs)
+
+    def _post(self, url, *args, **kwargs):
+        return self._request("POST", url, *args, **kwargs)
+
+    def _delete(self, url, *args, **kwargs):
+        return self._request("DELETE", url, *args, **kwargs)
+
     def download_project(self, project_id, *, path=".", keep_zip=False):
         """Download and unzip the project.
 
@@ -230,9 +254,7 @@ class SyncClient:
             Exception if the project can't be downloaded/unzipped.
         """
         url = f"{self.base_url}/project/{project_id}/download/zip"
-        r = self.client.get(url, stream=True)
-        r.raise_for_status()
-
+        r = self._get(url, stream=True)
         logger.info(f"Downloading {project_id} in {path}")
         target_dir = Path(path)
         target_path = Path(target_dir, f"{project_id}.zip")
@@ -280,12 +302,14 @@ class SyncClient:
         def on_connection_rejected(*args):
             logger.debug("[connectionRejected]  oh !!!")
 
+        headers = {"Referer": url}
+        headers.update(self.headers)
         with SocketIO(
             self.base_url,
             verify=self.verify,
             Namespace=Namespace,
             cookies={"sharelatex.sid": self.sharelatex_sid},
-            headers={"Referer": url},
+            headers=headers,
         ) as socketIO:
 
             def on_joint_doc(*args):
@@ -321,7 +345,7 @@ class SyncClient:
             Exception if the file can't be downloaded
         """
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
-        r = self.client.get(url, data=self.login_data, verify=self.verify)
+        r = self._get(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
         # TODO(msimonin): return type
         return r
@@ -342,7 +366,7 @@ class SyncClient:
             Exception if the file can't be downloaded
         """
         url = f"{self.base_url}/project/{project_id}/document/{doc_id}"
-        r = self.client.get(url, data=self.login_data, verify=self.verify)
+        r = self._get(url, data=self.login_data, verify=self.verify)
 
         # TODO(msimonin): return type
         return r
@@ -361,7 +385,7 @@ class SyncClient:
             Exception if the file can't be deleted
         """
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
-        r = self.client.delete(url, data=self.login_data, verify=self.verify)
+        r = self._delete(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
         # TODO(msimonin): return type
         return r
@@ -380,7 +404,7 @@ class SyncClient:
             Exception if the file can't be deleted
         """
         url = f"{self.base_url}/project/{project_id}/doc/{doc_id}"
-        r = self.client.delete(url, data=self.login_data, verify=self.verify)
+        r = self._delete(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
         # TODO(msimonin): return type
 
@@ -414,7 +438,7 @@ class SyncClient:
             "qqfilename": filename,
             "qqtotalfilesize": os.path.getsize(path),
         }
-        r = self.client.post(url, params=params, files=files, verify=self.verify)
+        r = self._post(url, params=params, files=files, verify=self.verify)
         r.raise_for_status()
         response = r.json()
         if not response["success"]:
@@ -440,7 +464,7 @@ class SyncClient:
         url = f"{self.base_url}/project/{project_id}/folder"
         data = {"parent_folder_id": parent_folder, "_csrf": self.csrf, "name": name}
         logger.debug(data)
-        r = self.client.post(url, data=data, verify=self.verify)
+        r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
         return response
@@ -494,7 +518,7 @@ class SyncClient:
             "qqfilename": filename,
             "qqtotalfilesize": os.path.getsize(path),
         }
-        r = self.client.post(url, params=params, files=files, verify=self.verify)
+        r = self._post(url, params=params, files=files, verify=self.verify)
         r.raise_for_status()
         response = r.json()
         if not response["success"]:
@@ -521,7 +545,7 @@ class SyncClient:
             "privileges": "readAndWrite" if can_edit else "readOnly",
             "_csrf": self.csrf,
         }
-        r = self.client.post(url, data=data, verify=self.verify)
+        r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
         return response
@@ -543,7 +567,7 @@ class SyncClient:
         url = f"{self.base_url}/project/{project_id}/compile"
 
         data = {"_csrf": self.csrf}
-        r = self.client.post(url, data=data, verify=self.verify)
+        r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
         return response

@@ -244,7 +244,6 @@ def _pull(repo, client, project_id):
 
     # TODO: try to check directly from server what file or directory
     # is changed/delete/modify instead to reload whole project zip
-
     client.download_project(project_id)
     update_ref(repo, message="pre pull")
     git.checkout("master")
@@ -366,7 +365,6 @@ def clone(projet_url, directory, username, password, save_password):
     client = SyncClient(
         base_url=base_url, username=username, password=password, verify=True
     )
-
     client.download_project(project_id, path=directory)
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="clone")
