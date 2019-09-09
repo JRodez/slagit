@@ -485,7 +485,7 @@ This litteraly creates a new remote project in sync with the local version.
 @click.option(
     "--save-password/--no-save-password",
     default=None,
-    help="""save user account information (clear password) in git local config""",
+    help="""Save user account information (in OS keyring system)""",
 )
 def new(projectname, base_url, username, password, save_password):
     repo = get_clean_repo()
