@@ -326,7 +326,7 @@ class SyncClient:
         # TODO(msimonin): return type
         return r
 
-     # TODO: check if this fonction is still usefull (in regard to get_doc)
+    # TODO: check if this fonction is still usefull (in regard to get_doc)
     def get_document(self, project_id, doc_id):
         """Get a single document (e.g tex file).
 
@@ -517,9 +517,10 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/invite"
         data = {
-            "email":email,
+            "email": email,
             "privileges": "readAndWrite" if can_edit else "readOnly",
-            "_csrf": self.csrf}
+            "_csrf": self.csrf,
+        }
         r = self.client.post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()

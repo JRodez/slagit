@@ -26,15 +26,17 @@ PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
 
+
 class Config:
     """Handle gitconfig read/write operations in a transparent way."""
 
     def __init__(self, repo):
         self.repo = repo
-        self.keyring= keyring.get_keyring()
+        self.keyring = keyring.get_keyring()
 
     def get_password(self, service, username):
         return self.keyring.get_password(service, username)
+
     def set_password(self, service, username, password):
         self.keyring.set_password(service, username, password)
 
@@ -273,7 +275,7 @@ def compile(project_id):
 )
 def share(project_id, email, can_edit):
     repo = Repo()
-    base_url, project_id = refresh_project_information(repo,project_id=project_id)
+    base_url, project_id = refresh_project_information(repo, project_id=project_id)
     username, password = refresh_account_information(repo)
     client = SyncClient(
         base_url=base_url, username=username, password=password, verify=True
@@ -281,7 +283,6 @@ def share(project_id, email, can_edit):
 
     response = client.share(project_id, email, can_edit)
     print(response)
-
 
 
 @cli.command(
