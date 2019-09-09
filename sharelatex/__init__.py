@@ -12,7 +12,6 @@ import zipfile
 
 import filetype
 from socketIO_client import SocketIO, BaseNamespace
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -165,38 +164,6 @@ class SyncClient:
         check_error(_r.json())
         self.login_data.pop("password")
         self.sharelatex_sid = _r.cookies["sharelatex.sid"]
-
-    @classmethod
-    def from_yaml(cls, *, filepath=None):
-        """Instantiate a new client from a configuration yaml file.
-
-        Note:
-            The yaml dictionnary is injected as kwargs of init method.
-
-        Examples:
-
-            .. code:: bash
-
-                # from your shell
-                echo '
-                username: MYLOGIN
-                password: MYPASSWORD
-                ' > ~/.sharelatex.yaml
-
-                # from python
-                client = SyncClient.from_yaml()
-
-        Args:
-            filepath (str): Path to the configuration file
-
-        Returns:
-            A newly created instance of the client.
-        """
-        if not filepath:
-            filepath = Path(os.environ.get("HOME"), ".sharelatex.yaml")
-        with open(filepath, "r") as f:
-            conf = yaml.load(f, Loader=yaml.BaseLoader)
-            return cls(**conf)
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
