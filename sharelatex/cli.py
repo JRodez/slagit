@@ -116,7 +116,7 @@ def get_clean_repo(path=None):
     return repo
 
 
-def refresh_project_information(repo, base_url=None, project_id=None):
+def refresh_project_information(repo, base_url=None, project_id=None, https_cert_check=None):
     """Get and/or set the project information in/from the git config.
     
     If the information is set in the config it is retrieved, otherwise it is set.
@@ -147,10 +147,19 @@ def refresh_project_information(repo, base_url=None, project_id=None):
         else:
             project_id = input(PROMPT_PROJECT_ID)
             need_save = True
+    if https_cert_check == None:
+        c = config.get_value(SLATEX_SECTION, "httpsCertCheck")
+        if c:
+            https_cert_check = c
+            need_save = False
+        else:
+            https_cert_check = True
+            need_save = True
     if need_save:
         config.set_value(SLATEX_SECTION, "baseUrl", base_url)
         config.set_value(SLATEX_SECTION, "projectId", project_id)
-    return base_url, project_id
+        config.set_value(SLATEX_SECTION, "httpsCertCheck", https_cert_check)
+    return base_url, project_id, https_cert_check
 
 
 def refresh_account_information(repo, username=None, password=None, save_password=None):
@@ -254,10 +263,10 @@ def _pull(repo, client, project_id):
 @click.argument("project_id", default="")
 def compile(project_id):
     repo = Repo()
-    base_url, project_id = refresh_project_information(repo)
+    base_url, project_id, https_cert_check = refresh_project_information(repo)
     username, password = refresh_account_information(repo)
     client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
+        base_url=base_url, username=username, password=password, verify=https_cert_check
     )
 
     response = client.compile(project_id)
@@ -274,10 +283,10 @@ def compile(project_id):
 )
 def share(project_id, email, can_edit):
     repo = Repo()
-    base_url, project_id = refresh_project_information(repo, project_id=project_id)
+    base_url, project_id, https_cert_check = refresh_project_information(repo, project_id=project_id)
     username, password = refresh_account_information(repo)
     client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
+        base_url=base_url, username=username, password=password, verify=https_cert_check
     )
 
     response = client.share(project_id, email, can_edit)
@@ -296,10 +305,10 @@ def share(project_id, email, can_edit):
 )
 def pull():
     repo = Repo()
-    base_url, project_id = refresh_project_information(repo)
+    base_url, project_id, https_cert_check = refresh_project_information(repo)
     username, password = refresh_account_information(repo)
     client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
+        base_url=base_url, username=username, password=password, verify=https_cert_check
     )
     # Fail if the repo is clean
     _pull(repo, client, project_id)
@@ -342,7 +351,12 @@ It works as follow:
     default=None,
     help="""Save user account information (in OS keyring system)""",
 )
-def clone(projet_url, directory, username, password, save_password):
+@click.option(
+    "--https-cert-check/--no-https-cert-check",
+    default= True,
+    help="""force to check https certificate or not""",
+)
+def clone(projet_url, directory, username, password, save_password, https_cert_check):
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
     project_id = slashparts[-1]
@@ -357,13 +371,13 @@ def clone(projet_url, directory, username, password, save_password):
 
     repo = get_clean_repo(path=directory)
 
-    base_url, project_id = refresh_project_information(repo, base_url, project_id)
+    base_url, project_id, https_cert_check = refresh_project_information(repo, base_url, project_id, https_cert_check)
     username, password = refresh_account_information(
         repo, username, password, save_password
     )
 
     client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
+        base_url=base_url, username=username, password=password, verify=https_cert_check
     )
     client.download_project(project_id, path=directory)
     # TODO(msimonin): add a decent default .gitignore ?
@@ -414,10 +428,10 @@ def push(force):
             client.delete_file(project_id, entity["_id"])
 
     repo = get_clean_repo()
-    base_url, project_id = refresh_project_information(repo)
+    base_url, project_id, https_cert_check = refresh_project_information(repo)
     username, password = refresh_account_information(repo)
     client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
+        base_url=base_url, username=username, password=password, verify=https_cert_check
     )
     if not force:
         _pull(repo, client, project_id)
@@ -485,14 +499,19 @@ This litteraly creates a new remote project in sync with the local version.
     default=None,
     help="""Save user account information (in OS keyring system)""",
 )
-def new(projectname, base_url, username, password, save_password):
+@click.option(
+    "--https-cert-check/--no-https-cert-check",
+    default= True,
+    help="""force to check https certificate or not""",
+)
+def new(projectname, base_url, username, password, save_password, https_cert_check):
     repo = get_clean_repo()
     username, password = refresh_account_information(
         repo, username, password, save_password
     )
 
     client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=True
+        base_url=base_url, username=username, password=password, verify=https_cert_check
     )
     iter_file = repo.tree().traverse()
     archive_name = "%s.zip" % projectname
@@ -506,5 +525,5 @@ def new(projectname, base_url, username, password, save_password):
     print("Successfully uploaded %s [%s]" % (projectname, response["project_id"]))
     archive_path.unlink()
 
-    refresh_project_information(repo, base_url, response["project_id"])
+    refresh_project_information(repo, base_url, response["project_id"], https_cert_check)
     update_ref(repo, message="upload")
