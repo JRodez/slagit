@@ -571,3 +571,30 @@ class SyncClient:
         r.raise_for_status()
         response = r.json()
         return response
+
+    def new(self, project_name):
+        """Create a new example project for the current user.
+
+        Args:
+            project_name (str): The project name of the project to create
+        """
+        url = f"{self.base_url}/project/new"
+
+        data = {"_csrf": self.csrf, "projectName": project_name, "template": "example"}
+        r = self._post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        response = r.json()
+        return response
+
+    def delete(self, project_id, *, forever=False):
+        """Delete a project for the current user.
+
+        Args:
+            project_id (str): The project id of the project to delete
+        """
+        url = f"{self.base_url}/project/{project_id}"
+        data = {"_csrf": self.csrf}
+        params = {"forever": forever}
+        r = self._delete(url, data=data, params=params, verify=self.verify)
+        r.raise_for_status()
+        return r
