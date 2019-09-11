@@ -164,12 +164,11 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
         username (str): The username to consider
         password (str): The password to consider
         save_password (boolean): True for save user account information (in OS 
-                                 kayring system) if needed
+                                 keyring system) if needed
 
     Returns:
         tupe (username, password) after the refresh occurs.
     """
-    need_save = True
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
 
@@ -177,24 +176,21 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
         u = config.get_value(SLATEX_SECTION, "username")
         if u:
             username = u
-            need_save = False
         else:
             username = input(PROMPT_USERNAME)
-            need_save = True
+            config.set_value(SLATEX_SECTION, "username", username)
+
     if password == None:
         p = config.get_password(base_url, username)
         if p:
             password = p
-            need_save = False
         else:
             password = getpass.getpass(PROMPT_PASSWORD)
             if save_password == None:
                 r = input(PROMPT_CONFIRM)
                 if r == "Y" or r == "y":
                     save_password = True
-            need_save = True
-    if save_password and need_save:
-        config.set_value(SLATEX_SECTION, "username", username)
+    if save_password:
         config.set_password(base_url, username, password)
     return username, password
 
