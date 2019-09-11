@@ -158,7 +158,7 @@ class SyncClient:
         login_url = "{}/login".format(self.base_url)
 
         # Retrieve the CSRF token first
-        r = self._get(login_url, verify=True)
+        r = self._get(login_url, verify=self.verify)
         self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
 
         # login
