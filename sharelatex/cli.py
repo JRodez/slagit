@@ -178,7 +178,7 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
             username = u
         else:
             username = input(PROMPT_USERNAME)
-            config.set_value(SLATEX_SECTION, "username", username)
+    config.set_value(SLATEX_SECTION, "username", username)
 
     if password == None:
         p = config.get_password(base_url, username)
