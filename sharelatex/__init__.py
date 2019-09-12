@@ -161,17 +161,28 @@ class SyncClient:
         r = self._get(login_url, verify=self.verify)
         if 'csrfToken' in r.text:
             self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
-
-            # login
             self.login_data = {"email": username, "password": password, "_csrf": self.csrf}
-            _r = self._post(login_url, data=self.login_data, verify=self.verify)
-            _r.raise_for_status()
-            check_error(_r.json())
-
-            self.login_data.pop("password")
-            self.sharelatex_sid = _r.cookies["sharelatex.sid"]
         else:
-            raise Exception("authentication page not found or not yet supported")
+            # try to find CAS form
+            from lxml import html
+            a = html.fromstring(r.text)
+            if len(a.forms) ==1 :
+                fo = a.forms[0]
+                if 'execution' in fo.fields.keys() : # seems to be CAS !
+                    self.login_data = {name:value for name,value in fo.form_values()}
+                    self.login_data["password"]=password
+                    self.login_data["username"]=username
+                    login_url= r.url
+                else:
+                    raise Exception("authentication page not found or not yet supported")
+        
+        # login
+        _r = self._post(login_url, data=self.login_data, verify=self.verify)
+        _r.raise_for_status()
+        #check_error(_r.json())
+
+        self.login_data.pop("password")
+        self.sharelatex_sid = _r.cookies["sharelatex.sid"]
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
