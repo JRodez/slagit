@@ -1,6 +1,15 @@
 Changelog
 ===========
 
+0.4.0
+-----
+
+- Client: add ``new`` method to create a template project
+- Client: add ``delete`` method to delete a project
+- Client: use a custom user-agent: ``python-sharelatex``
+- Cli: expose  ``--https-cert-check/--no-https-cert-check`` to control whether    ssl verification must be done
+- Misc: cleaning and initial functional tests
+
 0.3.0
 -----
 
