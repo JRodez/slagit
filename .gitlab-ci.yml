@@ -3,7 +3,19 @@
 # https://hub.docker.com/r/library/python/tags/
 image: python:3.6
 
-#### Entering th release zone
+variables:
+    PYTHONUNBUFFERED: 1
+
+functionnal:
+    stage: test
+    script:
+    - pip install .
+    # Alternative keyring (plain text/for testing purpose only)
+    - pip install keyrings.alt
+    - keyring --list-backends
+    - python sharelatex/tests/functionnal.py
+
+#### Entering the release zone
 pages:
     stage: deploy
     tags: [qlf-ci.inria.fr]
