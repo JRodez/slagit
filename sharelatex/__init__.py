@@ -175,6 +175,8 @@ class SyncClient:
                     login_url= r.url
                 else:
                     raise Exception("authentication page not found or not yet supported")
+            else:
+                raise Exception("authentication page not found")
         
         # login
         _r = self._post(login_url, data=self.login_data, verify=self.verify)
