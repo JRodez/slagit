@@ -9,11 +9,16 @@ variables:
 functionnal:
     stage: test
     script:
-    - pip install .
-    # Alternative keyring (plain text/for testing purpose only)
-    - pip install keyrings.alt
-    - keyring --list-backends
-    - python sharelatex/tests/functionnal.py
+    - pip install tox
+    - tox -e py36
+
+pep8:
+  stage: test
+  script:
+  - pip install tox
+  - tox -e pep8
+  # for now
+  allow_failure: true 
 
 #### Entering the release zone
 pages:

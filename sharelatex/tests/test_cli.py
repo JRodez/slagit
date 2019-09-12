@@ -3,6 +3,9 @@ import os
 from sharelatex import SyncClient
 from subprocess import check_call
 import tempfile
+import unittest
+
+
 
 BASE_URL = os.environ.get("CI_BASE_URL")
 USERNAME = os.environ.get("CI_USERNAME")
@@ -29,28 +32,22 @@ def project(project_name):
         yield (client, path, project_id)
         client.delete(project_id, forever=True)
 
+class TestCli(unittest.TestCase):
 
-@log
-def clone():
-    with project("clone") as (_, _, project_id):
-        url = f"{BASE_URL}/project/{project_id}"
-        check_call(
-            f"git slatex clone {url} --username={USERNAME} --password={PASSWORD} --save-password",
-            shell=True,
-        )
+    def test_clone(self):
+        with project("clone") as (_, _, project_id):
+            url = f"{BASE_URL}/project/{project_id}"
+            check_call(
+                f"git slatex clone {url} --username={USERNAME} --password={PASSWORD} --save-password",
+                shell=True,
+            )
 
-@log
-def clone_and_pull():
-    with project("clone_and_pull") as (_, path, project_id):
-        url = f"{BASE_URL}/project/{project_id}"
-        check_call(
-            f"git slatex clone {url} --username={USERNAME} --password={PASSWORD} --save-password",
-            shell=True,
-        )
-        os.chdir(path)
-        check_call("git slatex pull", shell=True)
-
-
-if __name__ == "__main__":
-    clone()
-    clone_and_pull()
+    def test_clone_and_push(self):
+        with project("clone_and_pull") as (_, path, project_id):
+            url = f"{BASE_URL}/project/{project_id}"
+            check_call(
+                f"git slatex clone {url} --username={USERNAME} --password={PASSWORD} --save-password",
+                shell=True,
+            )
+            os.chdir(path)
+            check_call("git slatex pull", shell=True)
