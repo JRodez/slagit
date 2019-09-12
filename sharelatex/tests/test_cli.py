@@ -36,11 +36,15 @@ def project(project_name):
     with tempfile.TemporaryDirectory() as temp_path:
         os.chdir(temp_path)
         r = client.new(project_name)
-        project_id = r["project_id"]
-        fs_path = os.path.join(temp_path, project_id)
-        # TODO(msimonin) yield the repo object also
-        yield Project(client, project_id, fs_path)
-        client.delete(project_id, forever=True)
+        try:
+            project_id = r["project_id"]
+            fs_path = os.path.join(temp_path, project_id)
+            # TODO(msimonin) yield the repo object also
+            yield Project(client, project_id, fs_path)
+        except Exception as e:
+            raise e
+        finally:
+            client.delete(project_id, forever=True)
 
 
 def new_project(f):
