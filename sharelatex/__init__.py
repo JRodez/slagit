@@ -159,16 +159,19 @@ class SyncClient:
 
         # Retrieve the CSRF token first
         r = self._get(login_url, verify=self.verify)
-        self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
+        if 'csrfToken' in r.text:
+            self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
 
-        # login
-        self.login_data = {"email": username, "password": password, "_csrf": self.csrf}
-        _r = self._post(login_url, data=self.login_data, verify=self.verify)
-        _r.raise_for_status()
-        check_error(_r.json())
+            # login
+            self.login_data = {"email": username, "password": password, "_csrf": self.csrf}
+            _r = self._post(login_url, data=self.login_data, verify=self.verify)
+            _r.raise_for_status()
+            check_error(_r.json())
 
-        self.login_data.pop("password")
-        self.sharelatex_sid = _r.cookies["sharelatex.sid"]
+            self.login_data.pop("password")
+            self.sharelatex_sid = _r.cookies["sharelatex.sid"]
+        else:
+            raise Exception("authentication page not found or not yet supported")
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
