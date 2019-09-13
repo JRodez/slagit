@@ -133,6 +133,20 @@ def check_error(json):
         raise Exception(message.get("text", "Unknown error"))
 
 
+def get_csrf_Token(html_text):
+    """Retrieve csrf token from a html text page from sharelatex server.
+
+    Args:
+        html_text (str): The text from a html page of sharelatex server
+    Returns:
+        the csrf token (str) if found in html_text or None if not
+    """
+    if "csrfToken" in html_text:
+        return re.search('(?<=csrfToken = ").{36}', html_text).group(0)
+    else:
+        return None
+
+
 class SyncClient:
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
         """Creates the client.
@@ -159,19 +173,43 @@ class SyncClient:
 
         # Retrieve the CSRF token first
         r = self._get(login_url, verify=self.verify)
-        if 'csrfToken' in r.text:
-            self.csrf = re.search('(?<=csrfToken = ").{36}', r.text).group(0)
-
+        self.csrf = get_csrf_Token(r.text)
+        if self.csrf:
+            self.login_data = {
+                "email": username,
+                "password": password,
+                "_csrf": self.csrf,
+            }
             # login
-            self.login_data = {"email": username, "password": password, "_csrf": self.csrf}
             _r = self._post(login_url, data=self.login_data, verify=self.verify)
             _r.raise_for_status()
             check_error(_r.json())
-
-            self.login_data.pop("password")
-            self.sharelatex_sid = _r.cookies["sharelatex.sid"]
         else:
-            raise Exception("authentication page not found or not yet supported")
+            # try to find CAS form
+            from lxml import html
+
+            a = html.fromstring(r.text)
+            if len(a.forms) == 1:
+                fo = a.forms[0]
+                if "execution" in fo.fields.keys():  # seems to be CAS !
+                    self.login_data = {name: value for name, value in fo.form_values()}
+                    self.login_data["password"] = password
+                    self.login_data["username"] = username
+                    login_url = r.url
+                    _r = self._post(login_url, data=self.login_data, verify=self.verify)
+                    _r.raise_for_status()
+                    self.csrf = get_csrf_Token(_r.text)
+                    if self.csrf == None:
+                        raise Exception("csrf token error")
+                else:
+                    raise Exception(
+                        "authentication page not found or not yet supported"
+                    )
+            else:
+                raise Exception("authentication page not found")
+
+        self.login_data.pop("password")
+        self.sharelatex_sid = _r.cookies["sharelatex.sid"]
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
