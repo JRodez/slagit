@@ -116,7 +116,9 @@ def get_clean_repo(path=None):
     return repo
 
 
-def refresh_project_information(repo, base_url=None, project_id=None, https_cert_check=None):
+def refresh_project_information(
+    repo, base_url=None, project_id=None, https_cert_check=None
+):
     """Get and/or set the project information in/from the git config.
     
     If the information is set in the config it is retrieved, otherwise it is set.
@@ -129,36 +131,35 @@ def refresh_project_information(repo, base_url=None, project_id=None, https_cert
     Returns:
         tupe (base_url, project_id) after the refresh occurs.
     """
-    need_save = True
     config = Config(repo)
     if base_url == None:
         u = config.get_value(SLATEX_SECTION, "baseUrl")
-        if u:
+        if u is not None:
             base_url = u
-            need_save = False
         else:
             base_url = input(PROMPT_BASE_URL)
-            need_save = True
+            config.set_value(SLATEX_SECTION, "baseUrl", base_url)
+    else:
+        config.set_value(SLATEX_SECTION, "baseUrl", base_url)
     if project_id == None:
         p = config.get_value(SLATEX_SECTION, "projectId")
-        if p:
+        if p is not None:
             project_id = p
-            need_save = False
         else:
             project_id = input(PROMPT_PROJECT_ID)
-            need_save = True
+        config.set_value(SLATEX_SECTION, "projectId", project_id)
+    else:
+        config.set_value(SLATEX_SECTION, "projectId", project_id)
     if https_cert_check == None:
         c = config.get_value(SLATEX_SECTION, "httpsCertCheck")
-        if c:
+        if c is not None:
             https_cert_check = c
-            need_save = False
         else:
             https_cert_check = True
-            need_save = True
-    if need_save:
-        config.set_value(SLATEX_SECTION, "baseUrl", base_url)
-        config.set_value(SLATEX_SECTION, "projectId", project_id)
+            config.set_value(SLATEX_SECTION, "httpsCertCheck", https_cert_check)
+    else:
         config.set_value(SLATEX_SECTION, "httpsCertCheck", https_cert_check)
+
     return base_url, project_id, https_cert_check
 
 
@@ -279,7 +280,9 @@ def compile(project_id):
 )
 def share(project_id, email, can_edit):
     repo = Repo()
-    base_url, project_id, https_cert_check = refresh_project_information(repo, project_id=project_id)
+    base_url, project_id, https_cert_check = refresh_project_information(
+        repo, project_id=project_id
+    )
     username, password = refresh_account_information(repo)
     client = SyncClient(
         base_url=base_url, username=username, password=password, verify=https_cert_check
@@ -349,7 +352,7 @@ It works as follow:
 )
 @click.option(
     "--https-cert-check/--no-https-cert-check",
-    default= True,
+    default=True,
     help="""force to check https certificate or not""",
 )
 def clone(projet_url, directory, username, password, save_password, https_cert_check):
@@ -367,7 +370,9 @@ def clone(projet_url, directory, username, password, save_password, https_cert_c
 
     repo = get_clean_repo(path=directory)
 
-    base_url, project_id, https_cert_check = refresh_project_information(repo, base_url, project_id, https_cert_check)
+    base_url, project_id, https_cert_check = refresh_project_information(
+        repo, base_url, project_id, https_cert_check
+    )
     username, password = refresh_account_information(
         repo, username, password, save_password
     )
@@ -497,7 +502,7 @@ This litteraly creates a new remote project in sync with the local version.
 )
 @click.option(
     "--https-cert-check/--no-https-cert-check",
-    default= True,
+    default=True,
     help="""force to check https certificate or not""",
 )
 def new(projectname, base_url, username, password, save_password, https_cert_check):
@@ -521,5 +526,7 @@ def new(projectname, base_url, username, password, save_password, https_cert_che
     print("Successfully uploaded %s [%s]" % (projectname, response["project_id"]))
     archive_path.unlink()
 
-    refresh_project_information(repo, base_url, response["project_id"], https_cert_check)
+    refresh_project_information(
+        repo, base_url, response["project_id"], https_cert_check
+    )
     update_ref(repo, message="upload")
