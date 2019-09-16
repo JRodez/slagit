@@ -146,7 +146,6 @@ def get_csrf_Token(html_text):
     else:
         return None
 
-
 class SyncClient:
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
         """Creates the client.
@@ -391,9 +390,11 @@ class SyncClient:
         # TODO(msimonin): return type
         return r
 
-    # TODO: check if this fonction is still usefull (in regard to get_doc)
     def get_document(self, project_id, doc_id):
         """Get a single document (e.g tex file).
+
+        Note: This method requires a patch server side to expose the
+        corresponding endpoint. So one shouldn't use this in general
 
         Args:
             project_id (str): The project id of the project where the document 
