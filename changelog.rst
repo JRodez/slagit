@@ -1,6 +1,12 @@
 Changelog
 ===========
 
+0.5.0
+-----
+
+- Client: (transparent) support for `raweb-latex.inria.fr`
+- Misc: Add some functionnal tests
+
 0.4.0
 -----
 
