@@ -125,7 +125,7 @@ class TestCli(unittest.TestCase):
 
     @new_project
     def test_clone_and_push_local_addition(self, project):
-        """Addition of a file"""
+        """Addition of a local file"""
         check_call("echo test > main2.tex", shell=True)
         project.repo.git.add(".")
         project.repo.index.commit("test")
@@ -136,8 +136,33 @@ class TestCli(unittest.TestCase):
         self.assertEqual("test\n", remote_content)
 
     @new_project
+    def test_clone_and_pull_remote_addition(self, project):
+        """Addition of a remote file."""
+        check_call("mkdir -p test", shell=True)
+        check_call("echo test > test/test.tex", shell=True)
+
+        # create the file on the remote copy
+        client = project.client
+        project_id = project.project_id
+        project_data = client.get_project_data(project_id)
+        folder_id = client.check_or_create_folder(project_data, "/test")
+        client.upload_file(project_id, folder_id, "test/test.tex")
+
+        # remove local file
+        check_call("rm -rf test", shell=True)
+        self.assertFalse(os.path.exists("test/test.tex"))
+
+        # pull
+        check_call("git slatex pull", shell=True)
+
+        # check the file
+        self.assertTrue(os.path.exists("test/test.tex"))
+        # check content (there's an extra \n...)
+        self.assertEqual("test\n", open("test/test.tex", "r").read())
+
+    @new_project
     def test_clone_and_push_local_deletion(self, project):
-        """Addition of a file"""
+        """Deletion of a local file"""
         check_call("rm main.tex", shell=True)
         project.repo.git.add(".")
         project.repo.index.commit("test")
@@ -145,13 +170,10 @@ class TestCli(unittest.TestCase):
         with self.assertRaises(StopIteration) as _:
             project.get_doc_by_path("/main.tex")
 
-
     @new_project
     def test_clone_and_pull_remote_deletion(self, project):
-        """Deletion of universe.png"""
+        """Deletion of remote universe.png"""
         project.delete_file_by_path("/universe.jpg")
         check_call("git slatex pull", shell=True)
         # TODO: we could check the diff
         self.assertFalse(os.path.exists("universe.jpg"))
-
-    
