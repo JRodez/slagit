@@ -1,6 +1,11 @@
 Changelog
 ===========
 
+0.5.1
+-----
+
+- Add version in the user agent
+
 0.5.0
 -----
 

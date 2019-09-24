@@ -14,9 +14,12 @@ import filetype
 from socketIO_client import SocketIO, BaseNamespace
 
 
+from .__version__ import __version__
+
+
 logger = logging.getLogger(__name__)
 BASE_URL = "https://sharelatex.irisa.fr"
-USER_AGENT = "python-sharelatex"
+USER_AGENT = f"python-sharelatex {__version__}"
 
 
 def walk_project_data(project_data, predicate=lambda x: True):
