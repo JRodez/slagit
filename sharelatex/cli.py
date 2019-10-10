@@ -357,7 +357,8 @@ def clone(projet_url, directory, username, password, save_password, https_cert_c
     slashparts = projet_url.split("/")
     project_id = slashparts[-1]
     base_url = "/".join(slashparts[:-2])
-
+    if base_url == '':
+        raise Exception("projet_url is not well formed or missing")
     if directory == "":
         directory = Path(os.getcwd())
         directory = Path(directory, project_id)
