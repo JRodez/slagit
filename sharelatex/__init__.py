@@ -149,6 +149,7 @@ def get_csrf_Token(html_text):
     else:
         return None
 
+
 class SyncClient:
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
         """Creates the client.
@@ -162,7 +163,8 @@ class SyncClient:
             password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
         """
-
+        if base_url == "":
+            raise Exception("projet_url is not well formed or missing")
         self.base_url = base_url
         self.verify = verify
 
