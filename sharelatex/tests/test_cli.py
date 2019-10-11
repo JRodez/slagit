@@ -177,3 +177,8 @@ class TestCli(unittest.TestCase):
         check_call("git slatex pull", shell=True)
         # TODO: we could check the diff
         self.assertFalse(os.path.exists("universe.jpg"))
+
+    def test_clone_malformed_project_URL(self):
+        """try clone with malformed project URL"""
+        with self.assertRaises(Exception) as _:
+            check_call("git slatex clone not_a_PROJET_URL", shell=True)
