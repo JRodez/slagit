@@ -1,6 +1,11 @@
 Changelog
 ===========
 
+0.5.2
+-----
+
+- Cli/clone: Add a check for the base_url format
+
 0.5.1
 -----
 
