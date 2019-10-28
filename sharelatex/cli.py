@@ -397,7 +397,7 @@ This works as follow:
    Note that only the files that have changed (modified/added/removed) will be uploaded. 
 """
 )
-@click.option("--force", "-f", help="Force push")
+@click.option("--force", is_flag=True, help="Force push")
 def push(force):
     def _upload(client, project_data, path):
         # initial factorisation effort
