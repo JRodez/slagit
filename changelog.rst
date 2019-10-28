@@ -4,6 +4,11 @@ Changelog
 0.5.2
 -----
 
+- Cli/push: ``--force`` is now a flag
+
+0.5.2
+-----
+
 - Cli/clone: Add a check for the base_url format
 
 0.5.1
