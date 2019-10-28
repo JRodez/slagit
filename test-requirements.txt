@@ -4,3 +4,4 @@ sphinx-rtd-theme>=0.2.4
 pytest
 sphinx-click
 keyrings.alt
+ddt
