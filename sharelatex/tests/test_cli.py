@@ -188,3 +188,12 @@ class TestCli(unittest.TestCase):
         """try clone with malformed project URL"""
         with self.assertRaises(Exception) as _:
             check_call("git slatex clone not_a_PROJET_URL", shell=True)
+
+
+class TestLib(unittest.TestCase):
+
+    @new_project
+    def test_copy(self, project):
+        client = project.client
+        response = client.clone(project.project_id, "cloned_project")
+        client.delete(response["project_id"], forever=True)

@@ -619,6 +619,27 @@ class SyncClient:
         response = r.json()
         return response
 
+    def clone(self, project_id, project_name):
+        """Copy a project.
+
+        Args:
+            project_id (str): The project id of the project to copy
+            project_name (str): The project name of the destination project
+
+        Returns:
+            response (dict) containing the project_id of the created project
+
+        Raises:
+             Exception if something is wrong with the compilation
+        """
+        url = f"{self.base_url}/project/{project_id}/clone"
+
+        data = {"_csrf": self.csrf, "projectName": project_name}
+        r = self._post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        response = r.json()
+        return response
+
     def new(self, project_name):
         """Create a new example project for the current user.
 
