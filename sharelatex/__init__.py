@@ -22,6 +22,17 @@ BASE_URL = "https://sharelatex.irisa.fr"
 USER_AGENT = f"python-sharelatex {__version__}"
 
 
+class SharelatexError(Exception):
+    """Base class for the errors here."""
+
+    pass
+
+
+class CompilationError(SharelatexError):
+    def __init__(self, json_status):
+        super().__init__("Compilation failed", json_status)
+
+
 def walk_project_data(project_data, predicate=lambda x: True):
     """Iterate on the project entities (folders, files).
 
@@ -617,6 +628,8 @@ class SyncClient:
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
+        if response["status"] != "success":
+            raise CompilationError(response)
         return response
 
     def clone(self, project_id, project_name):
