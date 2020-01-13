@@ -189,7 +189,7 @@ class SyncClient:
         else:
             # try to find CAS form
             from lxml import html
-
+            logger.debug(" try CAS login")
             a = html.fromstring(r.text)
             if len(a.forms) == 1:
                 fo = a.forms[0]

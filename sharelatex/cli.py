@@ -25,7 +25,7 @@ PROMPT_PROJECT_ID = "Project id: "
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
-
+MAX_NUMBER_ATTEMPTS = 3
 
 class Config:
     """Handle gitconfig read/write operations in a transparent way."""
@@ -39,6 +39,8 @@ class Config:
 
     def set_password(self, service, username, password):
         self.keyring.set_password(service, username, password)
+    def delete_password(self, service, username):
+        self.keyring.delete_password(service, username)
 
     def set_value(self, section, key, value, config_level="repository"):
         """Set a config value in a specific section.
@@ -69,7 +71,7 @@ class Config:
         Note: this returns the associated value if found. Otherwise it returns the default value.
 
         Args:
-            section (str): the section name
+            section (str): the section name: str
             key (str): the key to set
             default (str): the defaut value to apply
             config_level (str): the config level to look for
@@ -163,7 +165,7 @@ def refresh_project_information(
     return base_url, project_id, https_cert_check
 
 
-def refresh_account_information(repo, username=None, password=None, save_password=None):
+def refresh_account_information(repo, username=None, password=None, save_password=None, ignore_saved_user_info=False):
     """Get and/or set the account information in/from the git config.
     
     If the information is set in the config it is retrieved, otherwise it is set.
@@ -175,31 +177,40 @@ def refresh_account_information(repo, username=None, password=None, save_passwor
         password (str): The password to consider
         save_password (boolean): True for save user account information (in OS 
                                  keyring system) if needed
-
+        ignore_saved_user (boolean): True for ignore user account information (in OS 
+                                 keyring system) if present
     Returns:
-        tupe (username, password) after the refresh occurs.
+        tuple (username, password) after the refresh occurs.
     """
+    
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
 
     if username == None:
-        u = config.get_value(SLATEX_SECTION, "username")
-        if u:
-            username = u
+        
+        if not ignore_saved_user_info :
+            u = config.get_value(SLATEX_SECTION, "username")
+            if u:
+                username = u
+            else: 
+                username = input(PROMPT_USERNAME)
         else:
             username = input(PROMPT_USERNAME)
     config.set_value(SLATEX_SECTION, "username", username)
-
     if password == None:
-        p = config.get_password(base_url, username)
-        if p:
-            password = p
+        if not ignore_saved_user_info :
+            p = config.get_password(base_url, username)
+            if p:
+                password = p
+            else:
+                password = getpass.getpass(PROMPT_PASSWORD)
         else:
             password = getpass.getpass(PROMPT_PASSWORD)
-            if save_password == None:
-                r = input(PROMPT_CONFIRM)
-                if r == "Y" or r == "y":
-                    save_password = True
+        logging.debug("save_password = {}".format(save_password))
+        if save_password == None:
+            r = input(PROMPT_CONFIRM)
+            if r == "Y" or r == "y":
+                save_password = True
     if save_password:
         config.set_password(base_url, username, password)
     return username, password
@@ -317,8 +328,8 @@ def pull():
     help=f"""
 Get (clone) the files from sharelatex projet URL and create a local git depot.
 
-The optionnal target directory will be created if it doesn't exist. The command 
-fails if it already exists. Connection informations can be saved in the local git 
+The optional target directory will be created if it doesn't exist. The command 
+fails if it already exists. Connection information can be saved in the local git 
 config.
 
 It works as follow:
@@ -351,11 +362,16 @@ It works as follow:
     help="""Save user account information (in OS keyring system)""",
 )
 @click.option(
+    "--ignore-saved-user-info",
+    default=False,
+    help="""Forget user account information already saved (in OS keyring system)""",
+)
+@click.option(
     "--https-cert-check/--no-https-cert-check",
     default=True,
     help="""force to check https certificate or not""",
 )
-def clone(projet_url, directory, username, password, save_password, https_cert_check):
+def clone(projet_url, directory, username, password, save_password, ignore_saved_user_info, https_cert_check):
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
     project_id = slashparts[-1]
@@ -375,12 +391,25 @@ def clone(projet_url, directory, username, password, save_password, https_cert_c
         repo, base_url, project_id, https_cert_check
     )
     username, password = refresh_account_information(
-        repo, username, password, save_password
+        repo, username, password, save_password, ignore_saved_user_info
     )
 
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=https_cert_check
-    )
+    client = None
+    for i in range(MAX_NUMBER_ATTEMPTS):
+        try :
+            client = SyncClient(
+                base_url=base_url, username=username, password=password, verify=https_cert_check
+            )
+            break
+        except Exception as inst:
+            print("{}  : attempt # {} ".format( inst, i+1))
+            username, password = refresh_account_information(repo, ignore_saved_user_info=True)
+            
+            
+    if client == None:
+        import shutil
+        shutil.rmtree(directory)
+        raise Exception("maximum number of authentication attempts is reached")           
     client.download_project(project_id, path=directory)
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="clone")
