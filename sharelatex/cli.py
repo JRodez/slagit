@@ -1,8 +1,6 @@
-import json
 import logging
 import os
 from pathlib import Path
-import time
 
 import getpass
 
@@ -70,14 +68,16 @@ class Config:
     def get_value(self, section, key, default=None, config_level=None):
         """Get a config value in a specific section of the config.
 
-        Note: this returns the associated value if found. Otherwise it returns the default value.
+        Note: this returns the associated value if found.
+              Otherwise it returns the default value.
 
         Args:
             section (str): the section name: str
             key (str): the key to set
             default (str): the defaut value to apply
             config_level (str): the config level to look for
-                see https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.config_level 
+            see:
+https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.config_level
 
         """
         with self.repo.config_reader(config_level) as c:
@@ -98,10 +98,11 @@ class Config:
 def get_clean_repo(path=None):
     """Create the git.repo object from a directory.
 
-    Note: 
-    
+    Note:
+
         This initialize the git repository and fails if the repo isn't clean.
-        This is run prior to many operations to make sure there isn't any untracked/uncomitted files in the repo.
+        This is run prior to many operations to make sure there isn't any
+        untracked/uncomitted files in the repo.
 
     Args:
         path (str): the path of the repository in the local file system.
@@ -124,7 +125,7 @@ def refresh_project_information(
     repo, base_url=None, project_id=None, https_cert_check=None
 ):
     """Get and/or set the project information in/from the git config.
-    
+
     If the information is set in the config it is retrieved, otherwise it is set.
 
     Args:
@@ -136,7 +137,7 @@ def refresh_project_information(
         tupe (base_url, project_id) after the refresh occurs.
     """
     config = Config(repo)
-    if base_url == None:
+    if base_url is None:
         u = config.get_value(SLATEX_SECTION, "baseUrl")
         if u is not None:
             base_url = u
@@ -145,7 +146,7 @@ def refresh_project_information(
             config.set_value(SLATEX_SECTION, "baseUrl", base_url)
     else:
         config.set_value(SLATEX_SECTION, "baseUrl", base_url)
-    if project_id == None:
+    if project_id is None:
         p = config.get_value(SLATEX_SECTION, "projectId")
         if p is not None:
             project_id = p
@@ -154,7 +155,7 @@ def refresh_project_information(
         config.set_value(SLATEX_SECTION, "projectId", project_id)
     else:
         config.set_value(SLATEX_SECTION, "projectId", project_id)
-    if https_cert_check == None:
+    if https_cert_check is None:
         c = config.get_value(SLATEX_SECTION, "httpsCertCheck")
         if c is not None:
             https_cert_check = c
@@ -171,7 +172,7 @@ def refresh_account_information(
     repo, username=None, password=None, save_password=None, ignore_saved_user_info=False
 ):
     """Get and/or set the account information in/from the git config.
-    
+
     If the information is set in the config it is retrieved, otherwise it is set.
     Note that no further encryption of the password is offered here.
 
@@ -179,7 +180,7 @@ def refresh_account_information(
         repo (git.Repo): The repo object to read the config from
         username (str): The username to consider
         password (str): The password to consider
-        save_password (boolean): True for save user account information (in OS 
+        save_password (boolean): True for save user account information (in OS
                                  keyring system) if needed
         ignore_saved_user (boolean): True for ignore user account information (in OS 
                                  keyring system) if present
@@ -221,8 +222,8 @@ def refresh_account_information(
 
 def update_ref(repo, message="update_ref"):
     """Makes the remote pointer to point on the latest revision we have.
-    
-    This is called after a successfull clone, push, new. In short when we 
+
+    This is called after a successfull clone, push, new. In short when we
     are sure the remote and the local are in sync.
     """
     git = repo.git
@@ -441,7 +442,7 @@ This works as follow:
    Note that only the files that have changed (modified/added/removed) will be uploaded. 
 """
 )
-@click.option("--force", "-f", help="Force push")
+@click.option("--force", is_flag=True, help="Force push")
 def push(force):
     def _upload(client, project_data, path):
         # initial factorisation effort
