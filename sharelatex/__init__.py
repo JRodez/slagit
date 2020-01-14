@@ -149,6 +149,7 @@ def get_csrf_Token(html_text):
     else:
         return None
 
+
 class SyncClient:
     def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
         """Creates the client.
@@ -189,6 +190,7 @@ class SyncClient:
         else:
             # try to find CAS form
             from lxml import html
+
             logger.debug(" try CAS login")
             a = html.fromstring(r.text)
             if len(a.forms) == 1:
