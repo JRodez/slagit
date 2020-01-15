@@ -4,7 +4,7 @@ from pathlib import Path
 
 import getpass
 
-from sharelatex import SyncClient, walk_files, walk_project_data
+from sharelatex import SyncClient, walk_project_data
 
 import click
 from git import Repo
@@ -182,8 +182,8 @@ def refresh_account_information(
         password (str): The password to consider
         save_password (boolean): True for save user account information (in OS
                                  keyring system) if needed
-        ignore_saved_user (boolean): True for ignore user account information (in OS 
-                                 keyring system) if present
+        ignore_saved_user (boolean): True for ignore user account information (in
+                                 OS keyring system) if present
     Returns:
         tuple (username, password) after the refresh occurs.
     """
@@ -191,7 +191,6 @@ def refresh_account_information(
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
 
-    
     if username is None:
         if not ignore_saved_user_info:
             u = config.get_value(SLATEX_SECTION, "username")
@@ -306,11 +305,11 @@ def share(project_id, email, can_edit):
 
 @cli.command(
     help=f"""Pull the files from sharelatex.
-    
+
     In the current repository, it works as follows:
-    
+
     1. Pull in ``{SYNC_BRANCH}`` branch the latest version of the remote project\n
-    2. Attempt a merge in the working branch. If the merge can't be done automatically, 
+    2. Attempt a merge in the working branch. If the merge can't be done automatically,
        you will be required to fix the conflixt manually
     """
 )
@@ -329,16 +328,16 @@ def pull():
     help=f"""
 Get (clone) the files from sharelatex projet URL and create a local git depot.
 
-The optional target directory will be created if it doesn't exist. The command 
-fails if it already exists. Connection information can be saved in the local git 
+The optional target directory will be created if it doesn't exist. The command
+fails if it already exists. Connection information can be saved in the local git
 config.
 
 It works as follow:
 
     1. Download and unzip the remote project in the target directory\n
     2. Initialize a fresh git repository\n
-    3. Create an extra ``{SYNC_BRANCH}`` to keep track of the remote versions of the project.
-       This branch must not be updated manually.
+    3. Create an extra ``{SYNC_BRANCH}`` to keep track of the remote versions of
+       the project. This branch must not be updated manually.
 """
 )
 @click.argument(
@@ -349,13 +348,15 @@ It works as follow:
     "--username",
     "-u",
     default=None,
-    help="""Username for sharelatex server account, if user is not provided, it will be asked online""",
+    help="""Username for sharelatex server account, if user is not provided, it will be
+ asked online""",
 )
 @click.option(
     "--password",
     "-p",
     default=None,
-    help="""User password for sharelatex server, if password is not provided, it will be asked online""",
+    help="""User password for sharelatex server, if password is not provided, it will
+ be asked online""",
 )
 @click.option(
     "--save-password/--no-save-password",
@@ -431,12 +432,12 @@ def clone(
 
 @cli.command(
     help=f"""Synchronize the local copy with the remote version.
-    
+
 This works as follow:
 
 1. The remote version is pulled (see the :program:`pull` command)\n
 2. After the merge succeed, the merged version is uploaded back to the remote server.\n
-   Note that only the files that have changed (modified/added/removed) will be uploaded. 
+   Note that only the files that have changed (modified/added/removed) will be uploaded.
 """
 )
 @click.option("--force", is_flag=True, help="Force push")
@@ -531,13 +532,15 @@ This litteraly creates a new remote project in sync with the local version.
     "--username",
     "-u",
     default=None,
-    help="""username for sharelatex server account, if user is not provided, it will be asked online""",
+    help="""username for sharelatex server account, if user is not provided, it will be
+ asked online""",
 )
 @click.option(
     "--password",
     "-p",
     default=None,
-    help="""user password for sharelatex server, if password is not provided, it will be asked online""",
+    help="""user password for sharelatex server, if password is not provided, it will
+ be asked online""",
 )
 @click.option(
     "--save-password/--no-save-password",
