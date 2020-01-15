@@ -192,23 +192,23 @@ def refresh_account_information(
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
 
     
-    if username == None:
+    if username is None:
         if not ignore_saved_user_info:
             u = config.get_value(SLATEX_SECTION, "username")
             if u:
                 username = u
-    if username == None:
+    if username is None:
         username = input(PROMPT_USERNAME)
     config.set_value(SLATEX_SECTION, "username", username)
 
-    if password == None:
+    if password is None:
         if not ignore_saved_user_info:
             p = config.get_password(base_url, username)
             if p:
                 password = p
-    if password == None:
+    if password is None:
         password = getpass.getpass(PROMPT_PASSWORD)
-        if save_password == None:
+        if save_password is None:
             r = input(PROMPT_CONFIRM)
             if r == "Y" or r == "y":
                 save_password = True
@@ -419,7 +419,7 @@ def clone(
                 repo, save_password=save_password, ignore_saved_user_info=True
             )
 
-    if client == None:
+    if client is None:
         import shutil
 
         shutil.rmtree(directory)
