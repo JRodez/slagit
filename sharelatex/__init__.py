@@ -22,6 +22,17 @@ BASE_URL = "https://sharelatex.irisa.fr"
 USER_AGENT = f"python-sharelatex {__version__}"
 
 
+class SharelatexError(Exception):
+    """Base class for the errors here."""
+
+    pass
+
+
+class CompilationError(SharelatexError):
+    def __init__(self, json_status):
+        super().__init__("Compilation failed", json_status)
+
+
 def walk_project_data(project_data, predicate=lambda x: True):
     """Iterate on the project entities (folders, files).
 
@@ -163,7 +174,8 @@ class SyncClient:
             password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
         """
-
+        if base_url == "":
+            raise Exception("projet_url is not well formed or missing")
         self.base_url = base_url
         self.verify = verify
 
@@ -614,6 +626,29 @@ class SyncClient:
         url = f"{self.base_url}/project/{project_id}/compile"
 
         data = {"_csrf": self.csrf}
+        r = self._post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        response = r.json()
+        if response["status"] != "success":
+            raise CompilationError(response)
+        return response
+
+    def clone(self, project_id, project_name):
+        """Copy a project.
+
+        Args:
+            project_id (str): The project id of the project to copy
+            project_name (str): The project name of the destination project
+
+        Returns:
+            response (dict) containing the project_id of the created project
+
+        Raises:
+             Exception if something is wrong with the compilation
+        """
+        url = f"{self.base_url}/project/{project_id}/clone"
+
+        data = {"_csrf": self.csrf, "projectName": project_name}
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
