@@ -190,26 +190,23 @@ def refresh_account_information(
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
 
+    
     if username == None:
-
         if not ignore_saved_user_info:
             u = config.get_value(SLATEX_SECTION, "username")
             if u:
                 username = u
-            else:
-                username = input(PROMPT_USERNAME)
-        else:
-            username = input(PROMPT_USERNAME)
+    if username == None:
+        username = input(PROMPT_USERNAME)
     config.set_value(SLATEX_SECTION, "username", username)
+
     if password == None:
         if not ignore_saved_user_info:
             p = config.get_password(base_url, username)
             if p:
                 password = p
-            else:
-                password = getpass.getpass(PROMPT_PASSWORD)
-        else:
-            password = getpass.getpass(PROMPT_PASSWORD)
+    if password == None:
+        password = getpass.getpass(PROMPT_PASSWORD)
         if save_password == None:
             r = input(PROMPT_CONFIRM)
             if r == "Y" or r == "y":
@@ -432,7 +429,7 @@ def clone(
 
 
 @cli.command(
-    help=f"""Synchronise the local copy with the remote version.
+    help=f"""Synchronize the local copy with the remote version.
     
 This works as follow:
 
