@@ -220,7 +220,9 @@ def getClient(repo, base_url, username, password, verify, save_password=None):
     client = None
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
-            client = SyncClient(base_url, username, password, verify)
+            client = SyncClient(
+                base_url=base_url, username=username, password=password, verify=verify
+            )
             break
         except Exception as inst:
             print("{}  : attempt # {} ".format(inst, i + 1))
