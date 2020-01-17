@@ -216,6 +216,20 @@ def refresh_account_information(
     return username, password
 
 
+def getClient(base_url, username, password, verify, save_password=None):
+    client = None
+    for i in range(MAX_NUMBER_ATTEMPTS):
+        try:
+            client = SyncClient(base_url, username, password, verify)
+            break
+        except Exception as inst:
+            print("{}  : attempt # {} ".format(inst, i + 1))
+            username, password = refresh_account_information(
+                repo, save_password=save_password, ignore_saved_user_info=True
+            )
+    return client
+
+
 def update_ref(repo, message="update_ref"):
     """Makes the remote pointer to point on the latest revision we have.
 
@@ -234,6 +248,35 @@ def update_ref(repo, message="update_ref"):
 @click.group()
 def cli():
     pass
+
+
+def authentication_options(function):
+    function = click.option(
+        "--username",
+        "-u",
+        default=None,
+        help="""Username for sharelatex server account, if user is not provided, it will be
+ asked online""",
+    )(function)
+    function = click.option(
+        "--password",
+        "-p",
+        default=None,
+        help="""User password for sharelatex server, if password is not provided, it will
+ be asked online""",
+    )(function)
+    function = click.option(
+        "--save-password/--no-save-password",
+        default=None,
+        help="""Save user account information (in OS keyring system)""",
+    )(function)
+    function = click.option(
+        "--ignore-saved-user-info",
+        default=False,
+        help="""Forget user account information already saved (in OS keyring system)""",
+    )(function)
+
+    return function
 
 
 def _pull(repo, client, project_id):
@@ -269,13 +312,14 @@ def _pull(repo, client, project_id):
 
 @cli.command(help="Compile the remote version of a project")
 @click.argument("project_id", default="")
-def compile(project_id):
+@authentication_options
+def compile(project_id, username, password, save_password, ignore_saved_user_info):
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    username, password = refresh_account_information(repo)
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=https_cert_check
+    username, password = refresh_account_information(
+        repo, username, password, save_password, ignore_saved_user_info
     )
+    client = getClient(base_url, username, password, https_cert_check, save_password)
 
     response = client.compile(project_id)
     print(response)
@@ -289,15 +333,24 @@ def compile(project_id):
     default=True,
     help="""Authorize user to edit the project or not""",
 )
-def share(project_id, email, can_edit):
+@authentication_options
+def share(
+    project_id,
+    email,
+    can_edit,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+):
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, project_id=project_id
     )
-    username, password = refresh_account_information(repo)
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=https_cert_check
+    username, password = refresh_account_information(
+        repo, username, password, save_password, ignore_saved_user_info
     )
+    client = getClient(base_url, username, password, https_cert_check, save_password)
 
     response = client.share(project_id, email, can_edit)
     print(response)
@@ -310,16 +363,17 @@ def share(project_id, email, can_edit):
 
     1. Pull in ``{SYNC_BRANCH}`` branch the latest version of the remote project\n
     2. Attempt a merge in the working branch. If the merge can't be done automatically,
-       you will be required to fix the conflixt manually
+       you will be required to fix the conflict manually
     """
 )
-def pull():
+@authentication_options
+def pull(username, password, save_password, ignore_saved_user_info):
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    username, password = refresh_account_information(repo)
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=https_cert_check
+    username, password = refresh_account_information(
+        repo, username, password, save_password, ignore_saved_user_info
     )
+    client = getClient(base_url, username, password, https_cert_check, save_password)
     # Fail if the repo is clean
     _pull(repo, client, project_id)
 
@@ -345,34 +399,11 @@ It works as follow:
 )  # , help="The project url (https://sharelatex.irisa.fr/1234567890)")
 @click.argument("directory", default="")  # , help="The target directory")
 @click.option(
-    "--username",
-    "-u",
-    default=None,
-    help="""Username for sharelatex server account, if user is not provided, it will be
- asked online""",
-)
-@click.option(
-    "--password",
-    "-p",
-    default=None,
-    help="""User password for sharelatex server, if password is not provided, it will
- be asked online""",
-)
-@click.option(
-    "--save-password/--no-save-password",
-    default=None,
-    help="""Save user account information (in OS keyring system)""",
-)
-@click.option(
-    "--ignore-saved-user-info",
-    default=False,
-    help="""Forget user account information already saved (in OS keyring system)""",
-)
-@click.option(
     "--https-cert-check/--no-https-cert-check",
     default=True,
     help="""force to check https certificate or not""",
 )
+@authentication_options
 def clone(
     projet_url,
     directory,
@@ -404,21 +435,7 @@ def clone(
         repo, username, password, save_password, ignore_saved_user_info
     )
 
-    client = None
-    for i in range(MAX_NUMBER_ATTEMPTS):
-        try:
-            client = SyncClient(
-                base_url=base_url,
-                username=username,
-                password=password,
-                verify=https_cert_check,
-            )
-            break
-        except Exception as inst:
-            print("{}  : attempt # {} ".format(inst, i + 1))
-            username, password = refresh_account_information(
-                repo, save_password=save_password, ignore_saved_user_info=True
-            )
+    client = getClient(base_url, username, password, https_cert_check, save_password)
 
     if client is None:
         import shutil
@@ -441,7 +458,8 @@ This works as follow:
 """
 )
 @click.option("--force", is_flag=True, help="Force push")
-def push(force):
+@authentication_options
+def push(force, username, password, save_password, ignore_saved_user_info):
     def _upload(client, project_data, path):
         # initial factorisation effort
         logging.debug(f"Uploading {path}")
@@ -475,10 +493,12 @@ def push(force):
 
     repo = get_clean_repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    username, password = refresh_account_information(repo)
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=https_cert_check
+    username, password = refresh_account_information(
+        repo, username, password, save_password, ignore_saved_user_info
     )
+
+    client = getClient(base_url, username, password, https_cert_check, save_password)
+
     if not force:
         _pull(repo, client, project_id)
 
@@ -529,38 +549,26 @@ This litteraly creates a new remote project in sync with the local version.
 @click.argument("projectname")
 @click.argument("base_url")
 @click.option(
-    "--username",
-    "-u",
-    default=None,
-    help="""username for sharelatex server account, if user is not provided, it will be
- asked online""",
-)
-@click.option(
-    "--password",
-    "-p",
-    default=None,
-    help="""user password for sharelatex server, if password is not provided, it will
- be asked online""",
-)
-@click.option(
-    "--save-password/--no-save-password",
-    default=None,
-    help="""Save user account information (in OS keyring system)""",
-)
-@click.option(
     "--https-cert-check/--no-https-cert-check",
     default=True,
     help="""force to check https certificate or not""",
 )
-def new(projectname, base_url, username, password, save_password, https_cert_check):
+@authentication_options
+def new(
+    projectname,
+    base_url,
+    https_cert_check,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+):
     repo = get_clean_repo()
     username, password = refresh_account_information(
-        repo, username, password, save_password
+        repo, username, password, save_password, ignore_saved_user_info
     )
+    client = getClient(base_url, username, password, https_cert_check, save_password)
 
-    client = SyncClient(
-        base_url=base_url, username=username, password=password, verify=https_cert_check
-    )
     iter_file = repo.tree().traverse()
     archive_name = "%s.zip" % projectname
     archive_path = Path(archive_name)
