@@ -75,10 +75,7 @@ def project(project_name):
 
             # let's clone it
             args = f"--username={USERNAME} --password={PASSWORD} --save-password"
-            check_call(
-                f"git slatex clone {project.url} {args}",
-                shell=True,
-            )
+            check_call(f"git slatex clone {project.url} {args}", shell=True)
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
             check_call("git config --local user.name 'me'", shell=True)
