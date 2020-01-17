@@ -216,7 +216,7 @@ def refresh_account_information(
     return username, password
 
 
-def getClient(base_url, username, password, verify, save_password=None):
+def getClient(repo, base_url, username, password, verify, save_password=None):
     client = None
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
@@ -319,7 +319,9 @@ def compile(project_id, username, password, save_password, ignore_saved_user_inf
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(base_url, username, password, https_cert_check, save_password)
+    client = getClient(
+        repo, base_url, username, password, https_cert_check, save_password
+    )
 
     response = client.compile(project_id)
     print(response)
@@ -350,7 +352,9 @@ def share(
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(base_url, username, password, https_cert_check, save_password)
+    client = getClient(
+        repo, base_url, username, password, https_cert_check, save_password
+    )
 
     response = client.share(project_id, email, can_edit)
     print(response)
@@ -373,7 +377,9 @@ def pull(username, password, save_password, ignore_saved_user_info):
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(base_url, username, password, https_cert_check, save_password)
+    client = getClient(
+        repo, base_url, username, password, https_cert_check, save_password
+    )
     # Fail if the repo is clean
     _pull(repo, client, project_id)
 
@@ -435,7 +441,9 @@ def clone(
         repo, username, password, save_password, ignore_saved_user_info
     )
 
-    client = getClient(base_url, username, password, https_cert_check, save_password)
+    client = getClient(
+        repo, base_url, username, password, https_cert_check, save_password
+    )
 
     if client is None:
         import shutil
@@ -497,7 +505,9 @@ def push(force, username, password, save_password, ignore_saved_user_info):
         repo, username, password, save_password, ignore_saved_user_info
     )
 
-    client = getClient(base_url, username, password, https_cert_check, save_password)
+    client = getClient(
+        repo, base_url, username, password, https_cert_check, save_password
+    )
 
     if not force:
         _pull(repo, client, project_id)
@@ -567,7 +577,9 @@ def new(
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(base_url, username, password, https_cert_check, save_password)
+    client = getClient(
+        repo, base_url, username, password, https_cert_check, save_password
+    )
 
     iter_file = repo.tree().traverse()
     archive_name = "%s.zip" % projectname
