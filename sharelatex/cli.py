@@ -17,6 +17,7 @@ handler = logging.StreamHandler()
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
+
 def set_log_level(verbose=0):
     """set log level from interger value"""
     LOG_LEVELS = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
