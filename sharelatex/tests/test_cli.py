@@ -74,10 +74,8 @@ def project(project_name):
             project = Project(client, project_id, fs_path)
 
             # let's clone it
-            check_call(
-                f"git slatex clone {project.url} --username={USERNAME} --password={PASSWORD} --save-password",
-                shell=True,
-            )
+            args = f"--username={USERNAME} --password={PASSWORD} --save-password"
+            check_call(f"git slatex clone {project.url} {args}", shell=True)
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
             check_call("git config --local user.name 'me'", shell=True)
@@ -98,6 +96,7 @@ def new_project(f):
             return f(*args, p, **kwargs)
 
     return wrapped
+
 
 @ddt
 class TestCli(unittest.TestCase):
@@ -191,7 +190,6 @@ class TestCli(unittest.TestCase):
 
 
 class TestLib(unittest.TestCase):
-
     @new_project
     def test_copy(self, project):
         client = project.client

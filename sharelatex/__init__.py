@@ -1,7 +1,5 @@
-import json
 import logging
 import re
-import getpass
 import os
 import requests
 from pathlib import Path
@@ -203,6 +201,7 @@ class SyncClient:
             # try to find CAS form
             from lxml import html
 
+            logger.debug(" try CAS login")
             a = html.fromstring(r.text)
             if len(a.forms) == 1:
                 fo = a.forms[0]
@@ -214,7 +213,7 @@ class SyncClient:
                     _r = self._post(login_url, data=self.login_data, verify=self.verify)
                     _r.raise_for_status()
                     self.csrf = get_csrf_Token(_r.text)
-                    if self.csrf == None:
+                    if self.csrf is None:
                         raise Exception("csrf token error")
                 else:
                     raise Exception(
@@ -413,7 +412,7 @@ class SyncClient:
         corresponding endpoint. So one shouldn't use this in general
 
         Args:
-            project_id (str): The project id of the project where the document 
+            project_id (str): The project id of the project where the document
                 is
             doc_id (str): The document id
 
@@ -544,7 +543,7 @@ class SyncClient:
         try:
             folder = lookup_folder(metadata, folder_path)
             return folder["folder_id"]
-        except:
+        except StopIteration:
             logger.debug(f"{folder_path} not found, creation planed")
 
         parent_id = self.check_or_create_folder(metadata, os.path.dirname(folder_path))
@@ -589,7 +588,8 @@ class SyncClient:
         Args:
             project_id (str): The project id of the project to share
             email (str): Email of the recipient of the invitation
-            can_edit (boolean):True (resp. False) gives read/write (resp. read-only) access to the project 
+            can_edit (boolean):True (resp. False) gives read/write (resp. read-only)
+            access to the project
 
         Returns:
             response (dict) status of the request as returned by sharelatex
