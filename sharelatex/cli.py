@@ -17,7 +17,7 @@ handler = logging.StreamHandler()
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
-def set_log_level(verbose=1):
+def set_log_level(verbose=0):
     """set log level from interger value"""
     LOG_LEVELS = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
     logger.setLevel(LOG_LEVELS[verbose])
@@ -264,7 +264,7 @@ def cli():
 
 
 def log_options(function):
-    click.option("-v", "--verbose", count=True, default=1)(function)
+    click.option("-v", "--verbose", count=True, default=0)(function)
     return function
 
 
