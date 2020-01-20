@@ -171,7 +171,7 @@ class TestCli(unittest.TestCase):
         check_call("rm main.tex", shell=True)
         project.repo.git.add(".")
         project.repo.index.commit("test")
-        check_call(f"git slatex push {force}", shell=True)
+        check_call(f"git slatex push {force} -vvv", shell=True)
         with self.assertRaises(StopIteration) as _:
             project.get_doc_by_path("/main.tex")
 
@@ -179,14 +179,14 @@ class TestCli(unittest.TestCase):
     def test_clone_and_pull_remote_deletion(self, project):
         """Deletion of remote universe.png"""
         project.delete_file_by_path("/universe.jpg")
-        check_call("git slatex pull", shell=True)
+        check_call("git slatex pull -vvv", shell=True)
         # TODO: we could check the diff
         self.assertFalse(os.path.exists("universe.jpg"))
 
     def test_clone_malformed_project_URL(self):
         """try clone with malformed project URL"""
         with self.assertRaises(Exception) as _:
-            check_call("git slatex clone not_a_PROJET_URL", shell=True)
+            check_call("git slatex clone not_a_PROJET_URL -vvv", shell=True)
 
 
 class TestLib(unittest.TestCase):
