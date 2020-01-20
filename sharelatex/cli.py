@@ -13,8 +13,16 @@ from zipfile import ZipFile
 import keyring
 
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 
-logging.basicConfig(level=logging.DEBUG)
+def set_log_level(verbose=1):
+    """set log level from interger value"""
+    LOG_LEVELS = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
+    logger.setLevel(LOG_LEVELS[verbose])
+    print("effective_level={}".format(logger.getEffectiveLevel()))
+
 
 SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
@@ -58,7 +66,7 @@ class Config:
                 c.set_value(section, key, value)
             except cp.NoSectionError as e:
                 # No section is found, we create a new one
-                logging.debug(e)
+                logger.debug(e)
                 c.set_value(section, "init", "")
             except Exception as e:
                 raise e
@@ -84,10 +92,10 @@ https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.con
             try:
                 value = c.get_value(section, key)
             except cp.NoSectionError as e:
-                logging.debug(e)
+                logger.debug(e)
                 value = default
             except cp.NoOptionError as e:
-                logging.debug(e)
+                logger.debug(e)
                 value = default
             except Exception as e:
                 raise e
@@ -116,7 +124,7 @@ def get_clean_repo(path=None):
     repo = Repo.init(path=path)
     # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
-        print(repo.git.status())
+        logger.error(repo.git.status())
         raise Exception("The repo isn't clean.")
     return repo
 
@@ -226,7 +234,7 @@ def getClient(repo, base_url, username, password, verify, save_password=None):
             break
         except Exception as inst:
             client = None
-            print("{}  : attempt # {} ".format(inst, i + 1))
+            logger.warning("{}  : attempt # {} ".format(inst, i + 1))
             username, password = refresh_account_information(
                 repo, save_password=save_password, ignore_saved_user_info=True
             )
@@ -253,6 +261,11 @@ def update_ref(repo, message="update_ref"):
 @click.group()
 def cli():
     pass
+
+
+def log_options(function):
+    click.option("-v", "--verbose", count=True, default=1)(function)
+    return function
 
 
 def authentication_options(function):
@@ -284,10 +297,21 @@ def authentication_options(function):
     return function
 
 
+@cli.command(help="test log levels")
+@log_options
+def test(verbose):
+    set_log_level(verbose)
+    logger.debug("debug")
+    logger.info("info")
+    logger.error("error")
+    logger.warning("warning")
+    print("print")
+
+
 def _pull(repo, client, project_id):
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
-        print(repo.git.status())
-        print("The repository isn't clean")
+        logger.error(repo.git.status())
+        logger.error("The repository isn't clean")
         return
 
     # attempt to "merge" the remote and the local working copy
@@ -318,7 +342,11 @@ def _pull(repo, client, project_id):
 @cli.command(help="Compile the remote version of a project")
 @click.argument("project_id", default="")
 @authentication_options
-def compile(project_id, username, password, save_password, ignore_saved_user_info):
+@log_options
+def compile(
+    project_id, username, password, save_password, ignore_saved_user_info, verbose
+):
+    set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
     username, password = refresh_account_information(
@@ -329,7 +357,7 @@ def compile(project_id, username, password, save_password, ignore_saved_user_inf
     )
 
     response = client.compile(project_id)
-    print(response)
+    logger.debug(response)
 
 
 @cli.command(help="Send a invitation to share (edit/view) a project")
@@ -341,6 +369,7 @@ def compile(project_id, username, password, save_password, ignore_saved_user_inf
     help="""Authorize user to edit the project or not""",
 )
 @authentication_options
+@log_options
 def share(
     project_id,
     email,
@@ -349,7 +378,9 @@ def share(
     password,
     save_password,
     ignore_saved_user_info,
+    verbose,
 ):
+    set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, project_id=project_id
@@ -362,7 +393,7 @@ def share(
     )
 
     response = client.share(project_id, email, can_edit)
-    print(response)
+    logger.debug(response)
 
 
 @cli.command(
@@ -376,7 +407,9 @@ def share(
     """
 )
 @authentication_options
-def pull(username, password, save_password, ignore_saved_user_info):
+@log_options
+def pull(username, password, save_password, ignore_saved_user_info, verbose):
+    set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
     username, password = refresh_account_information(
@@ -415,6 +448,7 @@ It works as follow:
     help="""force to check https certificate or not""",
 )
 @authentication_options
+@log_options
 def clone(
     projet_url,
     directory,
@@ -423,7 +457,9 @@ def clone(
     save_password,
     ignore_saved_user_info,
     https_cert_check,
+    verbose,
 ):
+    set_log_level(verbose)
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
     project_id = slashparts[-1]
@@ -452,6 +488,7 @@ def clone(
         )
     except Exception as inst:
         import shutil
+
         shutil.rmtree(directory)
         raise inst
     client.download_project(project_id, path=directory)
@@ -471,10 +508,13 @@ This works as follow:
 )
 @click.option("--force", is_flag=True, help="Force push")
 @authentication_options
-def push(force, username, password, save_password, ignore_saved_user_info):
+@log_options
+def push(force, username, password, save_password, ignore_saved_user_info, verbose):
+    set_log_level(verbose)
+
     def _upload(client, project_data, path):
         # initial factorisation effort
-        logging.debug(f"Uploading {path}")
+        logger.debug(f"Uploading {path}")
         project_id = project_data["_id"]
         dirname = os.path.dirname(path)
         # TODO: that smells
@@ -486,7 +526,7 @@ def push(force, username, password, save_password, ignore_saved_user_info):
 
     def _delete(client, project_data, path):
         # initial factorisation effort
-        logging.debug(f"Deleting {path}")
+        logger.debug(f"Deleting {path}")
         project_id = project_data["_id"]
         dirname = os.path.dirname(path)
         # TODO: that smells
@@ -522,19 +562,19 @@ def push(force, username, password, save_password, ignore_saved_user_info):
 
     project_data = client.get_project_data(project_id)
 
-    logging.debug("Modify files to upload :")
+    logger.debug("Modify files to upload :")
     for d in diff_index.iter_change_type("M"):
         _upload(client, project_data, d.a_path)
 
-    logging.debug("new files to upload :")
+    logger.debug("new files to upload :")
     for d in diff_index.iter_change_type("A"):
         _upload(client, project_data, d.a_path)
 
-    logging.debug("delete files :")
+    logger.debug("delete files :")
     for d in diff_index.iter_change_type("D"):
         _delete(client, project_data, d.a_path)
 
-    logging.debug("rename files :")
+    logger.debug("rename files :")
     for d in diff_index.iter_change_type("R"):
         # git mv a b
         # for us this corresponds to
@@ -542,7 +582,7 @@ def push(force, username, password, save_password, ignore_saved_user_info):
         # 2) creating the new one (b)
         _delete(client, project_data, d.a_path)
         _upload(client, project_data, d.b_path)
-    logging.debug("Path type changes :")
+    logger.debug("Path type changes :")
     for d in diff_index.iter_change_type("T"):
         # This one is maybe
         # 1) deleting the old one (a)
@@ -568,6 +608,7 @@ This litteraly creates a new remote project in sync with the local version.
     help="""force to check https certificate or not""",
 )
 @authentication_options
+@log_options
 def new(
     projectname,
     base_url,
@@ -576,7 +617,9 @@ def new(
     password,
     save_password,
     ignore_saved_user_info,
+    verbose,
 ):
+    set_log_level(verbose)
     repo = get_clean_repo()
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
@@ -590,11 +633,11 @@ def new(
     archive_path = Path(archive_name)
     with ZipFile(str(archive_path), "w") as z:
         for f in iter_file:
-            logging.debug(f"Adding {f.path} to the archive")
+            logger.debug(f"Adding {f.path} to the archive")
             z.write(f.path)
 
     response = client.upload(archive_name)
-    print("Successfully uploaded %s [%s]" % (projectname, response["project_id"]))
+    logger.info("Successfully uploaded %s [%s]" % (projectname, response["project_id"]))
     archive_path.unlink()
 
     refresh_project_information(
