@@ -225,10 +225,13 @@ def getClient(repo, base_url, username, password, verify, save_password=None):
             )
             break
         except Exception as inst:
+            client = None
             print("{}  : attempt # {} ".format(inst, i + 1))
             username, password = refresh_account_information(
                 repo, save_password=save_password, ignore_saved_user_info=True
             )
+    if client is None:
+        raise Exception("maximum number of authentication attempts is reached")
     return client
 
 
@@ -443,15 +446,14 @@ def clone(
         repo, username, password, save_password, ignore_saved_user_info
     )
 
-    client = getClient(
-        repo, base_url, username, password, https_cert_check, save_password
-    )
-
-    if client is None:
+    try:
+        client = getClient(
+            repo, base_url, username, password, https_cert_check, save_password
+        )
+    except Exception as inst:
         import shutil
-
         shutil.rmtree(directory)
-        raise Exception("maximum number of authentication attempts is reached")
+        raise inst
     client.download_project(project_id, path=directory)
     # TODO(msimonin): add a decent default .gitignore ?
     update_ref(repo, message="clone")
