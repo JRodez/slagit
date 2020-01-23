@@ -16,6 +16,13 @@ from .__version__ import __version__
 
 
 logger = logging.getLogger(__name__)
+
+
+def set_logger(new_logger):
+    global logger
+    logger = new_logger
+
+
 BASE_URL = "https://sharelatex.irisa.fr"
 USER_AGENT = f"python-sharelatex {__version__}"
 
@@ -193,7 +200,7 @@ class SyncClient:
                 "password": password,
                 "_csrf": self.csrf,
             }
-            # login
+            logger.debug(" try login")
             _r = self._post(login_url, data=self.login_data, verify=self.verify)
             _r.raise_for_status()
             check_error(_r.json())

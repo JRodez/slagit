@@ -4,7 +4,7 @@ from pathlib import Path
 
 import getpass
 
-from sharelatex import SyncClient, walk_project_data
+from sharelatex import SyncClient, walk_project_data, set_logger
 
 import click
 from git import Repo
@@ -17,12 +17,13 @@ handler = logging.StreamHandler()
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
+set_logger(logger)
+
 
 def set_log_level(verbose=0):
     """set log level from interger value"""
     LOG_LEVELS = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
     logger.setLevel(LOG_LEVELS[verbose])
-    print("effective_level={}".format(logger.getEffectiveLevel()))
 
 
 SLATEX_SECTION = "slatex"
@@ -226,6 +227,7 @@ def refresh_account_information(
 
 
 def getClient(repo, base_url, username, password, verify, save_password=None):
+    logger.info(f"try to open session on {base_url} with {username}")
     client = None
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
@@ -312,7 +314,7 @@ def test(verbose):
 def _pull(repo, client, project_id):
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         logger.error(repo.git.status())
-        logger.error("The repository isn't clean")
+        print("The repository isn't clean: please add and commit or stash your files")
         return
 
     # attempt to "merge" the remote and the local working copy
