@@ -451,6 +451,7 @@ def clone(
         )
     except Exception as inst:
         import shutil
+
         shutil.rmtree(directory)
         raise inst
     client.download_project(project_id, path=directory)
@@ -577,6 +578,10 @@ def new(
     ignore_saved_user_info,
 ):
     repo = get_clean_repo()
+
+    refresh_project_information(
+        repo, base_url, 'NOT SET', https_cert_check
+    )
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
     )
