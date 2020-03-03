@@ -292,9 +292,8 @@ def _pull(repo, client, project_id):
 
     # attempt to "merge" the remote and the local working copy
 
-    # TODO(msimonin) get current branch
-    # here we assume master
     git = repo.git
+    active_branch = repo.active_branch.name
     git.checkout(SYNC_BRANCH)
 
     # delete all files but not .git !!!!
@@ -311,7 +310,7 @@ def _pull(repo, client, project_id):
     # is changed/delete/modify instead to reload whole project zip
     client.download_project(project_id)
     update_ref(repo, message="pre pull")
-    git.checkout("master")
+    git.checkout(active_branch)
     git.merge(SYNC_BRANCH)
 
 
@@ -516,7 +515,7 @@ def push(force, username, password, save_password, ignore_saved_user_info):
     if not force:
         _pull(repo, client, project_id)
 
-    master_commit = repo.commit("master")
+    master_commit = repo.commit("HEAD")
     sync_commit = repo.commit(SYNC_BRANCH)
     diff_index = sync_commit.diff(master_commit)
 
