@@ -188,6 +188,10 @@ class TestCli(unittest.TestCase):
         with self.assertRaises(Exception) as _:
             check_call("git slatex clone not_a_PROJET_URL", shell=True)
 
+    @new_project
+    def test_new(self, project):
+        check_call(f"git slatex new test_new {BASE_URL}", shell=True)
+
 
 class TestLib(unittest.TestCase):
     @new_project
