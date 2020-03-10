@@ -6,7 +6,6 @@ from pathlib import Path
 import threading
 import uuid
 import zipfile
-import copy
 
 import filetype
 from socketIO_client import SocketIO, BaseNamespace
@@ -62,24 +61,35 @@ def walk_project_data(project_data, predicate=lambda x: True):
             else:
                 folder_name = c["name"]
             folder_path = os.path.join(parent, folder_name)
+            folder_id = c["_id"]
             fd = {
-                "folder_id": c["_id"],
-                "folder_path": folder_path,
-                "name": folder_name,
+                'folder_id': folder_id,
+                'folder_path': folder_path,
+                'name': folder_name,
+                'type': "folder"
             }
-            fd.update(type="folder")
             if predicate(fd):
-                yield copy.copy(fd)
+                yield fd
             for f in c["fileRefs"]:
+                fd = {
+                    'folder_id': folder_id,
+                    'folder_path': folder_path,
+                    'name': folder_name,
+                    'type': "file"
+                }
                 fd.update(f)
-                fd.update(type="file")
                 if predicate(fd):
-                    yield copy.copy(fd)
+                    yield fd
             for d in c["docs"]:
+                fd = {
+                    'folder_id': folder_id,
+                    'folder_path': folder_path,
+                    'name': folder_name,
+                    'type': "doc"
+                }
                 fd.update(d)
-                fd.update(type="doc")
                 if predicate(fd):
-                    yield copy.copy(fd)
+                    yield fd
             if len(c["folders"]) > 0:
                 yield from _walk_project_data(c["folders"], folder_path)
 
