@@ -267,8 +267,13 @@ def cli():
 
 
 def log_options(function):
-    function = click.option("-v", "--verbose", count=True, default=2, 
-                            help="verbose level (can be: -v, -vv, -vvv)")(function)
+    function = click.option(
+        "-v",
+        "--verbose",
+        count=True,
+        default=2,
+        help="verbose level (can be: -v, -vv, -vvv)",
+    )(function)
     function = click.option("-s", "--silent", "verbose", flag_value=0)(function)
     function = click.option("--debug", "-d", "verbose", flag_value=3)(function)
     return function
@@ -322,9 +327,8 @@ def _pull(repo, client, project_id):
 
     # attempt to "merge" the remote and the local working copy
 
-    # TODO(msimonin) get current branch
-    # here we assume master
     git = repo.git
+    active_branch = repo.active_branch.name
     git.checkout(SYNC_BRANCH)
 
     # delete all files but not .git !!!!
@@ -341,7 +345,7 @@ def _pull(repo, client, project_id):
     # is changed/delete/modify instead to reload whole project zip
     client.download_project(project_id)
     update_ref(repo, message="pre pull")
-    git.checkout("master")
+    git.checkout(active_branch)
     git.merge(SYNC_BRANCH)
 
 
@@ -562,7 +566,7 @@ def push(force, username, password, save_password, ignore_saved_user_info, verbo
     if not force:
         _pull(repo, client, project_id)
 
-    master_commit = repo.commit("master")
+    master_commit = repo.commit("HEAD")
     sync_commit = repo.commit(SYNC_BRANCH)
     diff_index = sync_commit.diff(master_commit)
 
@@ -627,6 +631,8 @@ def new(
 ):
     set_log_level(verbose)
     repo = get_clean_repo()
+
+    refresh_project_information(repo, base_url, "NOT SET", https_cert_check)
     username, password = refresh_account_information(
         repo, username, password, save_password, ignore_saved_user_info
     )
