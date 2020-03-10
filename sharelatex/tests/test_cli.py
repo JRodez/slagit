@@ -88,15 +88,18 @@ def project(project_name, branch=None):
         finally:
             client.delete(project_id, forever=True)
 
+
 def new_project(branch=None):
     def _new_project(f):
-        """A convenient decorator to launch a function in the context of a new project."""
+        """A convenient decorator to launch a function in the
+         context of a new project."""
 
         def wrapped(*args, **kwargs):
             with project(f.__name__, branch=branch) as p:
                 return f(*args, p, **kwargs)
 
         return wrapped
+
     return _new_project
 
 
@@ -130,7 +133,9 @@ class TestCli(unittest.TestCase):
             # for some reason there's a trailing \n...
             self.assertEqual("test\n", remote_content)
 
-    @data(["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"])
+    @data(
+        ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
+    )
     @unpack
     def test_clone_and_push_local_addition(self, force, branch):
         @new_project(branch=branch)
@@ -172,7 +177,9 @@ class TestCli(unittest.TestCase):
             # check content (there's an extra \n...)
             self.assertEqual("test\n", open("test/test.tex", "r").read())
 
-    @data(["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"])
+    @data(
+        ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
+    )
     @unpack
     def test_clone_and_push_local_deletion(self, force, branch):
         @new_project(branch=branch)
@@ -185,7 +192,9 @@ class TestCli(unittest.TestCase):
             with self.assertRaises(StopIteration) as _:
                 project.get_doc_by_path("/main.tex")
 
-    @data(["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"])
+    @data(
+        ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
+    )
     @unpack
     def test_clone_and_pull_remote_deletion(self, force, branch):
         @new_project(branch=branch)
@@ -199,7 +208,7 @@ class TestCli(unittest.TestCase):
     def test_clone_malformed_project_URL(self):
         """try clone with malformed project URL"""
         with self.assertRaises(Exception) as _:
-            check_call("git slatex clone not_a_PROJET_URL", shell=True)
+            check_call("git slatex clone not_a_PROJET_URL -vvv", shell=True)
 
     @new_project()
     def test_new(self, project):

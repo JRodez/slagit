@@ -15,6 +15,13 @@ from .__version__ import __version__
 
 
 logger = logging.getLogger(__name__)
+
+
+def set_logger(new_logger):
+    global logger
+    logger = new_logger
+
+
 BASE_URL = "https://sharelatex.irisa.fr"
 USER_AGENT = f"python-sharelatex {__version__}"
 
@@ -63,29 +70,29 @@ def walk_project_data(project_data, predicate=lambda x: True):
             folder_path = os.path.join(parent, folder_name)
             folder_id = c["_id"]
             fd = {
-                'folder_id': folder_id,
-                'folder_path': folder_path,
-                'name': folder_name,
-                'type': "folder"
+                "folder_id": folder_id,
+                "folder_path": folder_path,
+                "name": folder_name,
+                "type": "folder",
             }
             if predicate(fd):
                 yield fd
             for f in c["fileRefs"]:
                 fd = {
-                    'folder_id': folder_id,
-                    'folder_path': folder_path,
-                    'name': folder_name,
-                    'type': "file"
+                    "folder_id": folder_id,
+                    "folder_path": folder_path,
+                    "name": folder_name,
+                    "type": "file",
                 }
                 fd.update(f)
                 if predicate(fd):
                     yield fd
             for d in c["docs"]:
                 fd = {
-                    'folder_id': folder_id,
-                    'folder_path': folder_path,
-                    'name': folder_name,
-                    'type': "doc"
+                    "folder_id": folder_id,
+                    "folder_path": folder_path,
+                    "name": folder_name,
+                    "type": "doc",
                 }
                 fd.update(d)
                 if predicate(fd):
@@ -203,7 +210,7 @@ class SyncClient:
                 "password": password,
                 "_csrf": self.csrf,
             }
-            # login
+            logger.debug(" try login")
             _r = self._post(login_url, data=self.login_data, verify=self.verify)
             _r.raise_for_status()
             check_error(_r.json())
