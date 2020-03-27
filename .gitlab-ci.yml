@@ -13,8 +13,6 @@ pep8:
   stage: test
   script:
   - tox -e pep8
-  # for now
-  allow_failure: true
 
 
 #######################################################################################
@@ -27,10 +25,14 @@ pep8:
 #      functionnal
 #
 #######################################################################################
-functionnal:
+py36-functionnal: &base-functionnal
     stage: test
+    image: python:3.6
+    variables:
+      TOXENV: py36
     script:
     # Install docker programs (docker-cli, docker-compose)
+    - env
     - apt update
     - apt-get install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
     - curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
@@ -52,8 +54,23 @@ functionnal:
     - export CI_USERNAME=joe@inria.fr
     - export CI_PASSWORD=test
     # let's test !
-    - tox -e py36
+    # the python interpreter version is taken from the TOXENV var
+    - tox
 
+py37-functionnal:
+  <<: *base-functionnal
+  stage: test
+  image: python:3.7
+  variables:
+    TOXENV: py37
+
+py38-functionnal:
+  <<: *base-functionnal
+  stage: test
+  image: python:3.8
+  variables:
+    TOXENV: py38
+  allow_failure: true
 
 ########################################################################################
 #
