@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from git import Repo
+import logging
 import os
 from subprocess import check_call
 import tempfile
@@ -8,6 +9,9 @@ import unittest
 from sharelatex import SyncClient, walk_project_data
 
 from ddt import ddt, data, unpack
+
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 BASE_URL = os.environ.get("CI_BASE_URL")
@@ -80,7 +84,7 @@ def project(project_name, branch=None):
             check_call("git config --local user.email 'test@test.com'", shell=True)
             check_call("git config --local user.name 'me'", shell=True)
             if branch is not None:
-                check_call(f"git checkout -b {branch}")
+                check_call(f"git checkout -b {branch}", shell=True)
             project.repo = Repo()
             yield project
         except Exception as e:
@@ -96,7 +100,8 @@ def new_project(branch=None):
 
         def wrapped(*args, **kwargs):
             with project(f.__name__, branch=branch) as p:
-                return f(*args, p, **kwargs)
+                kwargs.update(project=p)
+                return f(*args, **kwargs)
 
         return wrapped
 
@@ -106,22 +111,22 @@ def new_project(branch=None):
 @ddt
 class TestCli(unittest.TestCase):
     @new_project()
-    def test_clone(self, project):
+    def test_clone(self, project=None):
         pass
 
     @new_project()
-    def test_clone_and_pull(self, project):
+    def test_clone_and_pull(self, project=None):
         check_call("git slatex pull", shell=True)
 
     @data("--force", "")
     @new_project()
-    def test_clone_and_push(self, force, project):
+    def test_clone_and_push(self, force, project=None):
         check_call(f"git slatex push {force}", shell=True)
 
-    @data(["test_branch", None])
+    @data("test_branch", None)
     def test_clone_and_push_local_modification(self, branch):
         @new_project(branch=branch)
-        def _test_clone_and_push_local_modification(project):
+        def _test_clone_and_push_local_modification(project=None):
             """Local modification on main.tex"""
             check_call("echo test > main.tex", shell=True)
             project.repo.git.add(".")
@@ -132,6 +137,8 @@ class TestCli(unittest.TestCase):
 
             # for some reason there's a trailing \n...
             self.assertEqual("test\n", remote_content)
+        # run it
+        _test_clone_and_push_local_modification()
 
     @data(
         ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
@@ -139,7 +146,7 @@ class TestCli(unittest.TestCase):
     @unpack
     def test_clone_and_push_local_addition(self, force, branch):
         @new_project(branch=branch)
-        def _test_clone_and_push_local_addition(project):
+        def _test_clone_and_push_local_addition(project=None):
             """Addition of a local file"""
             check_call("echo test > main2.tex", shell=True)
             project.repo.git.add(".")
@@ -149,11 +156,12 @@ class TestCli(unittest.TestCase):
 
             # for some reason there's a trailing \n...
             self.assertEqual("test\n", remote_content)
+        _test_clone_and_push_local_addition()
 
-    @data(["test_branch", None])
+    @data("test_branch", None)
     def test_clone_and_pull_remote_addition(self, branch):
         @new_project(branch=branch)
-        def _test_clone_and_pull_remote_addition(project):
+        def _test_clone_and_pull_remote_addition(project=None):
             """Addition of a remote file."""
             check_call("mkdir -p test", shell=True)
             check_call("echo test > test/test.tex", shell=True)
@@ -176,6 +184,7 @@ class TestCli(unittest.TestCase):
             self.assertTrue(os.path.exists("test/test.tex"))
             # check content (there's an extra \n...)
             self.assertEqual("test\n", open("test/test.tex", "r").read())
+        _test_clone_and_pull_remote_addition()
 
     @data(
         ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
@@ -183,7 +192,7 @@ class TestCli(unittest.TestCase):
     @unpack
     def test_clone_and_push_local_deletion(self, force, branch):
         @new_project(branch=branch)
-        def _test_clone_and_push_local_deletion(project):
+        def _test_clone_and_push_local_deletion(project=None):
             """Deletion of a local file"""
             check_call("rm main.tex", shell=True)
             project.repo.git.add(".")
@@ -191,6 +200,7 @@ class TestCli(unittest.TestCase):
             check_call(f"git slatex push {force}", shell=True)
             with self.assertRaises(StopIteration) as _:
                 project.get_doc_by_path("/main.tex")
+        _test_clone_and_push_local_deletion()
 
     @data(
         ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
@@ -198,12 +208,13 @@ class TestCli(unittest.TestCase):
     @unpack
     def test_clone_and_pull_remote_deletion(self, force, branch):
         @new_project(branch=branch)
-        def _test_clone_and_pull_remote_deletion(project):
+        def _test_clone_and_pull_remote_deletion(project=None):
             """Deletion of remote universe.png"""
             project.delete_file_by_path("/universe.jpg")
             check_call("git slatex pull", shell=True)
             # TODO: we could check the diff
             self.assertFalse(os.path.exists("universe.jpg"))
+        _test_clone_and_pull_remote_deletion()
 
     def test_clone_malformed_project_URL(self):
         """try clone with malformed project URL"""
@@ -217,7 +228,7 @@ class TestCli(unittest.TestCase):
 
 class TestLib(unittest.TestCase):
     @new_project()
-    def test_copy(self, project):
+    def test_copy(self, project=None):
         client = project.client
         response = client.clone(project.project_id, "cloned_project")
         client.delete(response["project_id"], forever=True)
