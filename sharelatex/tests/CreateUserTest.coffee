@@ -8,11 +8,12 @@ module.exports = (grunt) ->
 			process.exit(1)
 
 		settings = require "settings-sharelatex"
-		UserRegistrationHandler = require "../web/app/js/Features/User/UserRegistrationHandler"
-		OneTimeTokenHandler = require "../web/app/js/Features/Security/OneTimeTokenHandler"
+		UserRegistrationHandler = require "../web/app/src/Features/User/UserRegistrationHandler"
+		OneTimeTokenHandler = require "../web/app/src/Features/Security/OneTimeTokenHandler"
 		UserRegistrationHandler.registerNewUser {
 			email: email
-			password: "test"
+			# NOTE(msimonin): we need a /strong/ password otherwise we don't validate
+			password: "Testtest42"
 		}, (error, user) ->
 			if error? and error?.message != "EmailAlreadyRegistered"
 				throw error
@@ -21,7 +22,7 @@ module.exports = (grunt) ->
 			user.save (error) ->
 				throw error if error?
 				ONE_WEEK = 7 * 24 * 60 * 60 # seconds
-				OneTimeTokenHandler.getNewToken user._id, { expiresIn: ONE_WEEK }, (err, token)->
+				OneTimeTokenHandler.getNewToken "password", { expiresIn: ONE_WEEK, email:user.email, user_id: user._id.toString() }, (err, token)->
 					return next(err) if err?
 
 					console.log ""

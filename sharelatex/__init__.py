@@ -1,8 +1,12 @@
+from json.decoder import JSONDecodeError
 import logging
-import re
+
+# try to find CAS form
+from lxml import html
 import os
-import requests
 from pathlib import Path
+import re
+import requests
 import threading
 import uuid
 import zipfile
@@ -136,30 +140,38 @@ def walk_files(project_data):
     return walk_project_data(project_data, lambda x: x["type"] == "file")
 
 
-def check_error(json):
-    """Check if there's an error in the returned json from sharelatex.
+def check_login_error(response):
+    """Check if there's an error in the request response
 
-    This assumes json to be a dict like the following
-    {
-        "message":
-         {
-              "text": "Your email or password is incorrect. Please try again",
-              "type": "error"
-         }
-    }
+    The response text is
+    - HTML if the auth is successful
+    - json: otherwise
+        {
+            "message":
+            {
+                "text": "Your email or password is incorrect. Please try again",
+                "type": "error"
+            }
+        }
 
     Args:
-        json (dict): message returned by the sharelatex server
+        response (request response): message returned by the sharelatex server
 
     Raise:
         Exception with the corresponding text in the message
     """
-    message = json.get("message")
-    if message is None:
-        return
-    t = message.get("type")
-    if t is not None and t == "error":
-        raise Exception(message.get("text", "Unknown error"))
+    try:
+        json = response.json()
+        message = json.get("message")
+        if message is None:
+            return
+        t = message.get("type")
+        if t is not None and t == "error":
+            raise Exception(message.get("text", "Unknown error"))
+    except JSONDecodeError:
+        # this migh be a successful login here
+        logger.info("Loggin successful")
+        pass
 
 
 def get_csrf_Token(html_text):
@@ -213,11 +225,8 @@ class SyncClient:
             logger.debug(" try login")
             _r = self._post(login_url, data=self.login_data, verify=self.verify)
             _r.raise_for_status()
-            check_error(_r.json())
+            check_login_error(_r)
         else:
-            # try to find CAS form
-            from lxml import html
-
             logger.debug(" try CAS login")
             a = html.fromstring(r.text)
             if len(a.forms) == 1:

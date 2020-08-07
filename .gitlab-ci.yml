@@ -52,7 +52,9 @@ py36-functionnal: &base-functionnal
     - docker exec --workdir /var/www/sharelatex -i sharelatex grunt user:test --email=joe@inria.fr
     - export CI_BASE_URL=http://172.17.0.1:8080
     - export CI_USERNAME=joe@inria.fr
-    - export CI_PASSWORD=test
+    # NOTE(msimonin): the password is hardcoded in the user creation script in
+    # sharelatex/tests/CreateUserTest.coffee
+    - export CI_PASSWORD=Testtest42
     # let's test !
     # the python interpreter version is taken from the TOXENV var
     - tox
