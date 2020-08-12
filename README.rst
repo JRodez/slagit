@@ -29,6 +29,22 @@ Installation
     cd python-sharelatex
     pip install [-e] .
 
+Compatibility notes
+-------------------
+
+The tool is targetting the community edition of ShareLatex/Overleaf.
+More specifically one specific version of the tool is targetting one specific
+version of ShareLatex/Overleaf CE version. Roughly we have the following mapping:
+
+
+.. list-table:: compatibility
+   :widths: 25 25
+   :header-rows: 1
+
+   * - python-sharelatex
+     - sharelatex/overleaf
+   * - 0.Y.Z
+     - 1.2.1
 
 Note on passwords management
 ----------------------------
