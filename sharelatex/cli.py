@@ -507,7 +507,7 @@ def clone(
 
 
 @cli.command(
-    help=f"""Synchronize the local copy with the remote version.
+    help="""Synchronize the local copy with the remote version.
 
 This works as follow:
 
