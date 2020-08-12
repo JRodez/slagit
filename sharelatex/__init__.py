@@ -649,6 +649,35 @@ class SyncClient:
             raise CompilationError(response)
         return response
 
+    def update_project_settings(self, project_id, **settings):
+        """Update the project settings.
+
+        Update the project settings.
+
+        Args:
+            project_id (str): The project id
+            settings: the key/value of the settings to change (as keyword arguments)
+
+        Examples:
+
+        .. code:: python
+
+            client.update_project_settings("5f326e4150cb80007f99a7c0",
+                                           compiler="xelatex",
+                                           name="newname")
+
+        Returns
+
+            The request response.
+        """
+        url = f"{self.base_url}/project/{project_id}/settings"
+
+        data = {"_csrf": self.csrf}
+        data.update(settings)
+        r = self._post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        return r
+
     def clone(self, project_id, project_name):
         """Copy a project.
 
