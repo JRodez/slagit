@@ -189,7 +189,6 @@ class SyncClient:
             password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
         """
-        breakpoint()
         if base_url == "":
             raise Exception("projet_url is not well formed or missing")
         self.base_url = base_url
