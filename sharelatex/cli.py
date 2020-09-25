@@ -180,8 +180,12 @@ def refresh_project_information(
 
 
 def refresh_account_information(
-    repo, login_path='login', username=None, password=None, save_password=None,
-    ignore_saved_user_info=False
+    repo,
+    login_path="login",
+    username=None,
+    password=None,
+    save_password=None,
+    ignore_saved_user_info=False,
 ):
     """Get and/or set the account information in/from the git config.
 
@@ -221,6 +225,7 @@ def refresh_account_information(
         username = input(PROMPT_USERNAME)
     config.set_value(SLATEX_SECTION, "username", username)
     import urllib.parse
+
     login_url = urllib.parse.urljoin(base_url, login_path)
 
     if password is None:
@@ -239,13 +244,19 @@ def refresh_account_information(
     return login_path, username, password
 
 
-def getClient(repo, base_url, login_path, username, password, verify, save_password=None):
+def getClient(
+    repo, base_url, login_path, username, password, verify, save_password=None
+):
     logger.info(f"try to open session on {base_url} with {username}")
     client = None
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
             client = SyncClient(
-                base_url=base_url, login_path=login_path, username=username, password=password, verify=verify
+                base_url=base_url,
+                login_path=login_path,
+                username=username,
+                password=password,
+                verify=verify,
             )
             break
         except Exception as inst:
@@ -296,7 +307,7 @@ def authentication_options(function):
     function = click.option(
         "--login-path",
         "-l",
-        default='login',
+        default="login",
         help="""login path to concat with sharelatex server url,
 value by default is login""",
     )(function)
@@ -375,7 +386,13 @@ def _pull(repo, client, project_id):
 @authentication_options
 @log_options
 def compile(
-    project_id, login_path, username, password, save_password, ignore_saved_user_info, verbose
+    project_id,
+    login_path,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
 ):
     set_log_level(verbose)
     repo = Repo()
@@ -440,7 +457,9 @@ def share(
 )
 @authentication_options
 @log_options
-def pull(login_path, username, password, save_password, ignore_saved_user_info, verbose):
+def pull(
+    login_path, username, password, save_password, ignore_saved_user_info, verbose
+):
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
@@ -517,7 +536,13 @@ def clone(
 
     try:
         client = getClient(
-            repo, base_url, login_path, username, password, https_cert_check, save_password
+            repo,
+            base_url,
+            login_path,
+            username,
+            password,
+            https_cert_check,
+            save_password,
         )
     except Exception as inst:
         import shutil
@@ -542,7 +567,15 @@ This works as follow:
 @click.option("--force", is_flag=True, help="Force push")
 @authentication_options
 @log_options
-def push(force, login_path, username, password, save_password, ignore_saved_user_info, verbose):
+def push(
+    force,
+    login_path,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
+):
     set_log_level(verbose)
 
     def _upload(client, project_data, path):

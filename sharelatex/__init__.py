@@ -177,7 +177,15 @@ def get_csrf_Token(html_text):
 
 
 class SyncClient:
-    def __init__(self, *, base_url=BASE_URL, login_path='login', username=None, password=None, verify=True):
+    def __init__(
+        self,
+        *,
+        base_url=BASE_URL,
+        login_path="login",
+        username=None,
+        password=None,
+        verify=True,
+    ):
         """Creates the client.
 
         This mimics the browser behaviour when logging in.
@@ -201,6 +209,7 @@ class SyncClient:
         # build the client and login
         self.client = requests.session()
         import urllib.parse
+
         login_url = urllib.parse.urljoin(self.base_url, login_path)
 
         # Retrieve the CSRF token first
@@ -227,8 +236,10 @@ class SyncClient:
                 fo = a.forms[0]
                 # execution for CAS
                 # authenticity_token for gitlab
-                if any(field in fo.fields.keys()
-                    for field in ['execution',  'authenticity_token']):
+                if any(
+                    field in fo.fields.keys()
+                    for field in ["execution", "authenticity_token"]
+                ):
                     self.login_data = {name: value for name, value in fo.form_values()}
                     self.login_data["password"] = password
                     self.login_data["username"] = username
