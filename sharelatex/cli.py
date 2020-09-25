@@ -405,6 +405,7 @@ def share(
     project_id,
     email,
     can_edit,
+    login_path,
     username,
     password,
     save_password,
@@ -483,6 +484,7 @@ It works as follow:
 def clone(
     projet_url,
     directory,
+    login_path,
     username,
     password,
     save_password,
@@ -644,6 +646,7 @@ def new(
     projectname,
     base_url,
     https_cert_check,
+    login_path,
     username,
     password,
     save_password,
