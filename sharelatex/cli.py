@@ -30,6 +30,7 @@ SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
+PROMPT_LOGIN_PATH = "Login path (example: 'login'): "
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
@@ -144,7 +145,7 @@ def refresh_project_information(
         project_id (str): the project_id to consider
 
     Returns:
-        tupe (base_url, project_id) after the refresh occurs.
+        tuple (base_url, project_id) after the refresh occurs.
     """
     config = Config(repo)
     if base_url is None:
@@ -179,7 +180,12 @@ def refresh_project_information(
 
 
 def refresh_account_information(
-    repo, username=None, password=None, save_password=None, ignore_saved_user_info=False
+    repo,
+    login_path="login",
+    username=None,
+    password=None,
+    save_password=None,
+    ignore_saved_user_info=False,
 ):
     """Get and/or set the account information in/from the git config.
 
@@ -195,11 +201,20 @@ def refresh_account_information(
         ignore_saved_user (boolean): True for ignore user account information (in
                                  OS keyring system) if present
     Returns:
-        tuple (username, password) after the refresh occurs.
+        tuple (login_path, username, password) after the refresh occurs.
     """
 
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
+
+    if login_path is None:
+        if not ignore_saved_user_info:
+            u = config.get_value(SLATEX_SECTION, "loginPath")
+            if u:
+                login_path = u
+    if login_path is None:
+        login_path = input(PROMPT_LOGIN_PATH)
+    config.set_value(SLATEX_SECTION, "loginPath", login_path)
 
     if username is None:
         if not ignore_saved_user_info:
@@ -209,10 +224,13 @@ def refresh_account_information(
     if username is None:
         username = input(PROMPT_USERNAME)
     config.set_value(SLATEX_SECTION, "username", username)
+    import urllib.parse
+
+    login_url = urllib.parse.urljoin(base_url, login_path)
 
     if password is None:
         if not ignore_saved_user_info:
-            p = config.get_password(base_url, username)
+            p = config.get_password(login_url, username)
             if p:
                 password = p
     if password is None:
@@ -222,23 +240,29 @@ def refresh_account_information(
             if r == "Y" or r == "y":
                 save_password = True
     if save_password:
-        config.set_password(base_url, username, password)
-    return username, password
+        config.set_password(login_url, username, password)
+    return login_path, username, password
 
 
-def getClient(repo, base_url, username, password, verify, save_password=None):
+def getClient(
+    repo, base_url, login_path, username, password, verify, save_password=None
+):
     logger.info(f"try to open session on {base_url} with {username}")
     client = None
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
             client = SyncClient(
-                base_url=base_url, username=username, password=password, verify=verify
+                base_url=base_url,
+                login_path=login_path,
+                username=username,
+                password=password,
+                verify=verify,
             )
             break
         except Exception as inst:
             client = None
             logger.warning("{}  : attempt # {} ".format(inst, i + 1))
-            username, password = refresh_account_information(
+            login_path, username, password = refresh_account_information(
                 repo, save_password=save_password, ignore_saved_user_info=True
             )
     if client is None:
@@ -281,10 +305,18 @@ def log_options(function):
 
 def authentication_options(function):
     function = click.option(
+        "--login-path",
+        "-l",
+        default="login",
+        help="""login path to concat with sharelatex server url,
+value by default is login""",
+    )(function)
+
+    function = click.option(
         "--username",
         "-u",
         default=None,
-        help="""Username for sharelatex server account, if user is not provided, it will be
+        help="""Username for sharelatex server account, if username is not provided, it will be
  asked online""",
     )(function)
     function = click.option(
@@ -354,16 +386,22 @@ def _pull(repo, client, project_id):
 @authentication_options
 @log_options
 def compile(
-    project_id, username, password, save_password, ignore_saved_user_info, verbose
+    project_id,
+    login_path,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
 ):
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    username, password = refresh_account_information(
-        repo, username, password, save_password, ignore_saved_user_info
+    login_path, username, password = refresh_account_information(
+        repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, username, password, https_cert_check, save_password
+        repo, base_url, login_path, username, password, https_cert_check, save_password
     )
 
     response = client.compile(project_id)
@@ -384,6 +422,7 @@ def share(
     project_id,
     email,
     can_edit,
+    login_path,
     username,
     password,
     save_password,
@@ -395,11 +434,11 @@ def share(
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, project_id=project_id
     )
-    username, password = refresh_account_information(
-        repo, username, password, save_password, ignore_saved_user_info
+    login_path, username, password = refresh_account_information(
+        repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, username, password, https_cert_check, save_password
+        repo, base_url, login_path, username, password, https_cert_check, save_password
     )
 
     response = client.share(project_id, email, can_edit)
@@ -418,15 +457,17 @@ def share(
 )
 @authentication_options
 @log_options
-def pull(username, password, save_password, ignore_saved_user_info, verbose):
+def pull(
+    login_path, username, password, save_password, ignore_saved_user_info, verbose
+):
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    username, password = refresh_account_information(
-        repo, username, password, save_password, ignore_saved_user_info
+    login_path, username, password = refresh_account_information(
+        repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, username, password, https_cert_check, save_password
+        repo, base_url, login_path, username, password, https_cert_check, save_password
     )
     # Fail if the repo is clean
     _pull(repo, client, project_id)
@@ -462,6 +503,7 @@ It works as follow:
 def clone(
     projet_url,
     directory,
+    login_path,
     username,
     password,
     save_password,
@@ -488,13 +530,19 @@ def clone(
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, base_url, project_id, https_cert_check
     )
-    username, password = refresh_account_information(
-        repo, username, password, save_password, ignore_saved_user_info
+    login_path, username, password = refresh_account_information(
+        repo, login_path, username, password, save_password, ignore_saved_user_info
     )
 
     try:
         client = getClient(
-            repo, base_url, username, password, https_cert_check, save_password
+            repo,
+            base_url,
+            login_path,
+            username,
+            password,
+            https_cert_check,
+            save_password,
         )
     except Exception as inst:
         import shutil
@@ -507,7 +555,7 @@ def clone(
 
 
 @cli.command(
-    help=f"""Synchronize the local copy with the remote version.
+    help="""Synchronize the local copy with the remote version.
 
 This works as follow:
 
@@ -519,7 +567,15 @@ This works as follow:
 @click.option("--force", is_flag=True, help="Force push")
 @authentication_options
 @log_options
-def push(force, username, password, save_password, ignore_saved_user_info, verbose):
+def push(
+    force,
+    login_path,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
+):
     set_log_level(verbose)
 
     def _upload(client, project_data, path):
@@ -555,12 +611,12 @@ def push(force, username, password, save_password, ignore_saved_user_info, verbo
 
     repo = get_clean_repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    username, password = refresh_account_information(
-        repo, username, password, save_password, ignore_saved_user_info
+    login_path, username, password = refresh_account_information(
+        repo, login_path, username, password, save_password, ignore_saved_user_info
     )
 
     client = getClient(
-        repo, base_url, username, password, https_cert_check, save_password
+        repo, base_url, login_path, username, password, https_cert_check, save_password
     )
 
     if not force:
@@ -623,6 +679,7 @@ def new(
     projectname,
     base_url,
     https_cert_check,
+    login_path,
     username,
     password,
     save_password,
@@ -633,11 +690,11 @@ def new(
     repo = get_clean_repo()
 
     refresh_project_information(repo, base_url, "NOT SET", https_cert_check)
-    username, password = refresh_account_information(
-        repo, username, password, save_password, ignore_saved_user_info
+    login_path, username, password = refresh_account_information(
+        repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, username, password, https_cert_check, save_password
+        repo, base_url, login_path, username, password, https_cert_check, save_password
     )
 
     iter_file = repo.tree().traverse()
