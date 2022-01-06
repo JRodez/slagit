@@ -244,3 +244,7 @@ class TestLib(unittest.TestCase):
         response = client.update_project_settings(project.project_id, name="RENAMED")
         project_data = client.get_project_data(project.project_id)
         self.assertEqual("RENAMED", project_data["name"])
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=3)

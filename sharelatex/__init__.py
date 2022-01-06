@@ -189,7 +189,15 @@ def get_csrf_Token(html_text):
 
 
 class SyncClient:
-    def __init__(self, *, base_url=BASE_URL, username=None, password=None, verify=True):
+    def __init__(
+        self,
+        *,
+        base_url=BASE_URL,
+        login_path="login",
+        username=None,
+        password=None,
+        verify=True,
+    ):
         """Creates the client.
 
         This mimics the browser behaviour when logging in.
@@ -204,6 +212,7 @@ class SyncClient:
         if base_url == "":
             raise Exception("projet_url is not well formed or missing")
         self.base_url = base_url
+        self.login_path = login_path
         self.verify = verify
 
         # Used in _get, _post... to add common headers
@@ -211,7 +220,9 @@ class SyncClient:
 
         # build the client and login
         self.client = requests.session()
-        login_url = "{}/login".format(self.base_url)
+        import urllib.parse
+
+        login_url = urllib.parse.urljoin(self.base_url, login_path)
 
         # Retrieve the CSRF token first
         r = self._get(login_url, verify=self.verify)
@@ -227,16 +238,26 @@ class SyncClient:
             _r.raise_for_status()
             check_login_error(_r)
         else:
-            logger.debug(" try CAS login")
+            # try to find CAS form
+            from lxml import html
+
+            logger.debug(" try CAS or gitlab login")
             a = html.fromstring(r.text)
-            if len(a.forms) == 1:
+            if len(a.forms) > 0:
+                # =1 for CAS, =2 for gitlab with LDAP (LDAP is 0 => force this choice)
                 fo = a.forms[0]
-                if "execution" in fo.fields.keys():  # seems to be CAS !
+                # execution for CAS
+                # authenticity_token for gitlab
+                if any(
+                    field in fo.fields.keys()
+                    for field in ["execution", "authenticity_token"]
+                ):
                     self.login_data = {name: value for name, value in fo.form_values()}
                     self.login_data["password"] = password
                     self.login_data["username"] = username
-                    login_url = r.url
-                    _r = self._post(login_url, data=self.login_data, verify=self.verify)
+
+                    post_url = urllib.parse.urljoin(r.url, fo.action)
+                    _r = self._post(post_url, data=self.login_data, verify=self.verify)
                     _r.raise_for_status()
                     self.csrf = get_csrf_Token(_r.text)
                     if self.csrf is None:
