@@ -9,7 +9,7 @@ services:
         restart: always
         # Server Pro users:
         # image: quay.io/sharelatex/sharelatex-pro
-        image: registry.gitlab.inria.fr/sed-rennes/overleaf/overleaf/overleaf:inria-2.3.1
+        image: sharelatex/sharelatex:3.0.1
         container_name: sharelatex
         # hack
         command: /sbin/my_init
