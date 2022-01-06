@@ -226,6 +226,19 @@ class SyncClient:
 
         # Retrieve the CSRF token first
         r = self._get(login_url, verify=self.verify)
+
+        # NOTE(msimonin): The goal of the code below is to
+        # 1) Authenticate to the sharelatex service
+        # 2) Retrieve the csrf token (used in subsequent requests)
+        # Authentication is performed differently depending on the authentication mode deployed with sharelatex.
+        # This could be the role of an Authenticator to so:
+        #   - DefaultAuthenticator will scrape the default login page of Sharelatex
+        #   - IrisaAuthenticator will scrape the gitlab authentification page (sharelatex is deployed with OAUTH2/Gitlab authentification)
+        #
+        # This could be used as follow:
+        #
+        # csrf = authenticator.login(username, password, verify=verify)
+        #
         self.csrf = get_csrf_Token(r.text)
         if self.csrf:
             self.login_data = {
@@ -239,9 +252,7 @@ class SyncClient:
             check_login_error(_r)
         else:
             # try to find CAS form
-            from lxml import html
-
-            logger.debug(" try CAS or gitlab login")
+            logger.debug("try CAS or gitlab login")
             a = html.fromstring(r.text)
             if len(a.forms) > 0:
                 # =1 for CAS, =2 for gitlab with LDAP (LDAP is 0 => force this choice)
