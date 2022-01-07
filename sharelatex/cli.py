@@ -1,10 +1,16 @@
 import logging
 import os
 from pathlib import Path
+import urllib.parse
 
 import getpass
 
-from sharelatex import SyncClient, walk_project_data, set_logger
+from sharelatex import (
+    get_authenticator_class,
+    SyncClient,
+    walk_project_data,
+    set_logger,
+)
 
 import click
 from git import Repo
@@ -30,7 +36,7 @@ SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
-PROMPT_LOGIN_PATH = "Login path (example: 'login'): "
+PROMPT_AUTH_TYPE = "Authentification type (default|irisa): "
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
@@ -79,16 +85,16 @@ class Config:
     def get_value(self, section, key, default=None, config_level=None):
         """Get a config value in a specific section of the config.
 
-        Note: this returns the associated value if found.
-              Otherwise it returns the default value.
+                Note: this returns the associated value if found.
+                      Otherwise it returns the default value.
 
-        Args:
-            section (str): the section name: str
-            key (str): the key to set
-            default (str): the defaut value to apply
-            config_level (str): the config level to look for
-            see:
-https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.config_level
+                Args:
+                    section (str): the section name: str
+                    key (str): the key to set
+                    default (str): the defaut value to apply
+                    config_level (str): the config level to look for
+                    see:
+        https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.config_level
 
         """
         with self.repo.config_reader(config_level) as c:
@@ -181,7 +187,7 @@ def refresh_project_information(
 
 def refresh_account_information(
     repo,
-    login_path="login",
+    auth_type,
     username=None,
     password=None,
     save_password=None,
@@ -207,14 +213,14 @@ def refresh_account_information(
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
 
-    if login_path is None:
+    if auth_type is None:
         if not ignore_saved_user_info:
-            u = config.get_value(SLATEX_SECTION, "loginPath")
+            u = config.get_value(SLATEX_SECTION, "authType")
             if u:
-                login_path = u
-    if login_path is None:
-        login_path = input(PROMPT_LOGIN_PATH)
-    config.set_value(SLATEX_SECTION, "loginPath", login_path)
+                auth_type = u
+    if auth_type is None:
+        auth_type = input(PROMPT_AUTH_TYPE)
+    config.set_value(SLATEX_SECTION, "authType", auth_type)
 
     if username is None:
         if not ignore_saved_user_info:
@@ -226,11 +232,9 @@ def refresh_account_information(
     config.set_value(SLATEX_SECTION, "username", username)
     import urllib.parse
 
-    login_url = urllib.parse.urljoin(base_url, login_path)
-
     if password is None:
         if not ignore_saved_user_info:
-            p = config.get_password(login_url, username)
+            p = config.get_password(base_url, username)
             if p:
                 password = p
     if password is None:
@@ -240,29 +244,37 @@ def refresh_account_information(
             if r == "Y" or r == "y":
                 save_password = True
     if save_password:
-        config.set_password(login_url, username, password)
-    return login_path, username, password
+        config.set_password(base_url, username, password)
+    return auth_type, username, password
 
 
 def getClient(
-    repo, base_url, login_path, username, password, verify, save_password=None
+    repo,
+    base_url,
+    auth_type,
+    username,
+    password,
+    verify,
+    save_password=None,
 ):
     logger.info(f"try to open session on {base_url} with {username}")
     client = None
+
+    authenticator = get_authenticator_class(auth_type)(
+        base_url, username, password, verify
+    )
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
             client = SyncClient(
                 base_url=base_url,
-                login_path=login_path,
-                username=username,
-                password=password,
+                authenticator=authenticator,
                 verify=verify,
             )
             break
         except Exception as inst:
             client = None
             logger.warning("{}  : attempt # {} ".format(inst, i + 1))
-            login_path, username, password = refresh_account_information(
+            auth_type, username, password = refresh_account_information(
                 repo, save_password=save_password, ignore_saved_user_info=True
             )
     if client is None:
@@ -304,6 +316,13 @@ def log_options(function):
 
 
 def authentication_options(function):
+    function = click.option(
+        "--auth_type",
+        "-a",
+        default="irisa",
+        help="""Authentification type (default|irisa).""",
+    )(function)
+
     function = click.option(
         "--login-path",
         "-l",
@@ -387,6 +406,7 @@ def _pull(repo, client, project_id):
 @log_options
 def compile(
     project_id,
+    auth_type,
     login_path,
     username,
     password,
@@ -401,7 +421,13 @@ def compile(
         repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, login_path, username, password, https_cert_check, save_password
+        repo,
+        base_url,
+        auth_type,
+        username,
+        password,
+        https_cert_check,
+        save_password,
     )
 
     response = client.compile(project_id)
@@ -422,6 +448,7 @@ def share(
     project_id,
     email,
     can_edit,
+    auth_type,
     login_path,
     username,
     password,
@@ -438,7 +465,13 @@ def share(
         repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, login_path, username, password, https_cert_check, save_password
+        repo,
+        base_url,
+        auth_type,
+        username,
+        password,
+        https_cert_check,
+        save_password,
     )
 
     response = client.share(project_id, email, can_edit)
@@ -458,7 +491,13 @@ def share(
 @authentication_options
 @log_options
 def pull(
-    login_path, username, password, save_password, ignore_saved_user_info, verbose
+    login_path,
+    auth_type,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
 ):
     set_log_level(verbose)
     repo = Repo()
@@ -467,7 +506,13 @@ def pull(
         repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, login_path, username, password, https_cert_check, save_password
+        repo,
+        base_url,
+        auth_type,
+        username,
+        password,
+        https_cert_check,
+        save_password,
     )
     # Fail if the repo is clean
     _pull(repo, client, project_id)
@@ -503,6 +548,7 @@ It works as follow:
 def clone(
     projet_url,
     directory,
+    auth_type,
     login_path,
     username,
     password,
@@ -538,7 +584,7 @@ def clone(
         client = getClient(
             repo,
             base_url,
-            login_path,
+            auth_type,
             username,
             password,
             https_cert_check,
@@ -569,6 +615,7 @@ This works as follow:
 @log_options
 def push(
     force,
+    auth_type,
     login_path,
     username,
     password,
@@ -616,7 +663,13 @@ def push(
     )
 
     client = getClient(
-        repo, base_url, login_path, username, password, https_cert_check, save_password
+        repo,
+        base_url,
+        auth_type,
+        username,
+        password,
+        https_cert_check,
+        save_password,
     )
 
     if not force:
@@ -679,6 +732,7 @@ def new(
     projectname,
     base_url,
     https_cert_check,
+    auth_type,
     login_path,
     username,
     password,
@@ -694,7 +748,13 @@ def new(
         repo, login_path, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
-        repo, base_url, login_path, username, password, https_cert_check, save_password
+        repo,
+        base_url,
+        auth_type,
+        username,
+        password,
+        https_cert_check,
+        save_password,
     )
 
     iter_file = repo.tree().traverse()

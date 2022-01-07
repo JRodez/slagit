@@ -207,7 +207,13 @@ class Authenticator(object):
 
 class DefaultAuthenticator(Authenticator):
     def __init__(
-        self, login_url: str, username: str, password: str, verify: bool = True, sid_name="sharelatex.sid"
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/login",
+        sid_name="sharelatex.sid",
     ):
         """Use the default login form of the community edition.
 
@@ -219,7 +225,7 @@ class DefaultAuthenticator(Authenticator):
                 testing instance)
         """
         super().__init__()
-        self.login_url = login_url
+        self.login_url = urllib.parse.urljoin(base_url, login_path)
         self.username = username
         self.password = password
         self.verify = verify
@@ -241,8 +247,6 @@ class DefaultAuthenticator(Authenticator):
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
-
-
 class IrisaAuthenticator(DefaultAuthenticator):
     """We use Gitlab as authentification backend (using OAUTH2).
 
@@ -252,9 +256,16 @@ class IrisaAuthenticator(DefaultAuthenticator):
     """
 
     def __init__(
-        self, login_url: str, username: str, password: str, verify: bool = True
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/auth/callback/gitlab",
     ):
-        super().__init__(login_url, username, password, verify=verify)
+        super().__init__(
+            base_url, username, password, verify=verify, login_path=login_path
+        )
 
     def authenticate(self) -> Tuple[str, str]:
         # go to the login form
@@ -293,7 +304,16 @@ class IrisaAuthenticator(DefaultAuthenticator):
                 _r.raise_for_status()
                 check_login_error(_r)
                 login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
-                return login_data, _r.cookies["sharelatex.sid"]
+                return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+
+
+def get_authenticator_class(auth_type: str):
+    if auth_type == "default":
+        return DefaultAuthenticator
+    elif auth_type == "irisa":
+        return IrisaAuthenticator
+    else:
+        raise ValueError("auth_type must be in (default|irisa)")
 
 
 class SyncClient:
@@ -301,7 +321,6 @@ class SyncClient:
         self,
         *,
         base_url=BASE_URL,
-        login_path="/login",
         username: str = None,
         password: str = None,
         verify: bool = True,
@@ -323,7 +342,6 @@ class SyncClient:
         if base_url == "":
             raise Exception("projet_url is not well formed or missing")
         self.base_url = base_url
-        self.login_path = login_path
         self.verify = verify
 
         # Used in _get, _post... to add common headers
@@ -334,9 +352,8 @@ class SyncClient:
         if authenticator is None:
             # build a default authenticator based on the
             # given credentials
-            login_url = urllib.parse.urljoin(self.base_url, login_path)
             authenticator = DefaultAuthenticator(
-                login_url, username, password, verify=self.verify
+                self.base_url, username, password, verify=self.verify
             )
             # set the session to use for authentication
 
@@ -637,7 +654,11 @@ class SyncClient:
             - 400 the folder already exists
         """
         url = f"{self.base_url}/project/{project_id}/folder"
-        data = {"parent_folder_id": parent_folder, "_csrf": self.login_data["_csrf"], "name": name}
+        data = {
+            "parent_folder_id": parent_folder,
+            "_csrf": self.login_data["_csrf"],
+            "name": name,
+        }
         logger.debug(data)
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -719,7 +740,7 @@ class SyncClient:
         data = {
             "email": email,
             "privileges": "readAndWrite" if can_edit else "readOnly",
-            "_csrf":self.login_data["_csrf"]
+            "_csrf": self.login_data["_csrf"],
         }
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -808,7 +829,11 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/new"
 
-        data = {"_csrf": self.login_data["_csrf"], "projectName": project_name, "template": "example"}
+        data = {
+            "_csrf": self.login_data["_csrf"],
+            "projectName": project_name,
+            "template": "example",
+        }
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()

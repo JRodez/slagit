@@ -6,7 +6,7 @@ from subprocess import check_call
 import tempfile
 import unittest
 
-from sharelatex import SyncClient, walk_project_data
+from sharelatex import SyncClient, walk_project_data, get_authenticator_class
 
 from ddt import ddt, data, unpack
 
@@ -17,6 +17,7 @@ logging.basicConfig(level=logging.DEBUG)
 BASE_URL = os.environ.get("CI_BASE_URL")
 USERNAMES = os.environ.get("CI_USERNAMES")
 PASSWORDS = os.environ.get("CI_PASSWORDS")
+AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
 
 # Operate with a list of users
 # This workarounds the rate limitation on the API if enough usernames and passwords are given
@@ -24,9 +25,11 @@ PASSWORDS = os.environ.get("CI_PASSWORDS")
 # An alternative would be to define a smoke user in the settings
 # settings.smokeTest = True, settings.smokeTest.UserId
 import queue
+
 CREDS = queue.Queue()
 for username, passwords in zip(USERNAMES.split(","), PASSWORDS.split(",")):
     CREDS.put((username, passwords))
+
 
 def log(f):
     def wrapped(*args, **kwargs):
@@ -77,8 +80,14 @@ class Project:
 @contextmanager
 def project(project_name, branch=None):
     """A convenient contextmanager to create a temporary project on sharelatex."""
+
+    # First we create a client.
+    # For testing purpose we disable SSL verification everywhere
     username, password = CREDS.get()
-    client = SyncClient(base_url=BASE_URL, username=username, password=password)
+    authenticator = get_authenticator_class(AUTH_TYPE)(
+        BASE_URL, username, password, verify=False
+    )
+    client = SyncClient(base_url=BASE_URL, authenticator=authenticator, verify=False)
     with tempfile.TemporaryDirectory() as temp_path:
         os.chdir(temp_path)
         r = client.new(project_name)
@@ -88,7 +97,7 @@ def project(project_name, branch=None):
             project = Project(client, project_id, fs_path)
 
             # let's clone it
-            args = f"--username={username} --password={password} --save-password"
+            args = f"--auth_type={AUTH_TYPE} --username={username} --password={password} --save-password --no-https-cert-check"
             check_call(f"git slatex clone {project.url} {args}", shell=True)
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
@@ -107,7 +116,7 @@ def project(project_name, branch=None):
 def new_project(branch=None):
     def _new_project(f):
         """A convenient decorator to launch a function in the
-         context of a new project."""
+        context of a new project."""
 
         def wrapped(*args, **kwargs):
             with project(f.__name__, branch=branch) as p:
