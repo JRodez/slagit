@@ -5,7 +5,6 @@ import logging
 from lxml import html
 import os
 from pathlib import Path
-import re
 import requests
 import threading
 import uuid
@@ -182,10 +181,12 @@ def get_csrf_Token(html_text):
     Returns:
         the csrf token (str) if found in html_text or None if not
     """
-    if "csrfToken" in html_text:
-        return re.search('(?<=csrfToken = ").{36}', html_text).group(0)
-    else:
+    parsed = html.fromstring(html_text)
+    meta = parsed.xpath("//meta[@name='ol-csrfToken']")
+    if not meta:
         return None
+    else:
+        return meta[0].get("content")
 
 
 class SyncClient:
@@ -230,10 +231,14 @@ class SyncClient:
         # NOTE(msimonin): The goal of the code below is to
         # 1) Authenticate to the sharelatex service
         # 2) Retrieve the csrf token (used in subsequent requests)
-        # Authentication is performed differently depending on the authentication mode deployed with sharelatex.
-        # This could be the role of an Authenticator to so:
+        # Authentication is performed differently depending on the
+        # authentication mode deployed with sharelatex.  We mustn't attempt to
+        # autodetect the authentification methode, instead it should be a
+        # parameter of the constructor.
+        # We can think to different Authenticator:
         #   - DefaultAuthenticator will scrape the default login page of Sharelatex
-        #   - IrisaAuthenticator will scrape the gitlab authentification page (sharelatex is deployed with OAUTH2/Gitlab authentification)
+        #   - IrisaAuthenticator will scrape the gitlab authentification page
+        #     (sharelatex is deployed with OAUTH2/Gitlab authentification)
         #
         # This could be used as follow:
         #
@@ -246,10 +251,13 @@ class SyncClient:
                 "password": password,
                 "_csrf": self.csrf,
             }
-            logger.debug(" try login")
+            logger.debug("try login")
             _r = self._post(login_url, data=self.login_data, verify=self.verify)
             _r.raise_for_status()
             check_login_error(_r)
+            self.csrf = get_csrf_Token(_r.text)
+            # inject the new csrf for subsequent requests
+            self.login_data["_csrf"] = self.csrf
         else:
             # try to find CAS form
             logger.debug("try CAS or gitlab login")

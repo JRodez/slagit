@@ -15,9 +15,18 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 BASE_URL = os.environ.get("CI_BASE_URL")
-USERNAME = os.environ.get("CI_USERNAME")
-PASSWORD = os.environ.get("CI_PASSWORD")
+USERNAMES = os.environ.get("CI_USERNAMES")
+PASSWORDS = os.environ.get("CI_PASSWORDS")
 
+# Operate with a list of users
+# This workarounds the rate limitation on the API if enough usernames and passwords are given
+# Each test will pick the next (username, password) in the queue and put it back at the end
+# An alternative would be to define a smoke user in the settings
+# settings.smokeTest = True, settings.smokeTest.UserId
+import queue
+CREDS = queue.Queue()
+for username, passwords in zip(USERNAMES.split(","), PASSWORDS.split(",")):
+    CREDS.put((username, passwords))
 
 def log(f):
     def wrapped(*args, **kwargs):
@@ -68,7 +77,8 @@ class Project:
 @contextmanager
 def project(project_name, branch=None):
     """A convenient contextmanager to create a temporary project on sharelatex."""
-    client = SyncClient(base_url=BASE_URL, username=USERNAME, password=PASSWORD)
+    username, password = CREDS.get()
+    client = SyncClient(base_url=BASE_URL, username=username, password=password)
     with tempfile.TemporaryDirectory() as temp_path:
         os.chdir(temp_path)
         r = client.new(project_name)
@@ -78,7 +88,7 @@ def project(project_name, branch=None):
             project = Project(client, project_id, fs_path)
 
             # let's clone it
-            args = f"--username={USERNAME} --password={PASSWORD} --save-password"
+            args = f"--username={username} --password={password} --save-password"
             check_call(f"git slatex clone {project.url} {args}", shell=True)
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
@@ -90,6 +100,7 @@ def project(project_name, branch=None):
         except Exception as e:
             raise e
         finally:
+            CREDS.put((username, password))
             client.delete(project_id, forever=True)
 
 
