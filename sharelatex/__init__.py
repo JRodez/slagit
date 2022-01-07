@@ -1,5 +1,6 @@
 from json.decoder import JSONDecodeError
 import logging
+from typing import Tuple
 
 # try to find CAS form
 from lxml import html
@@ -7,6 +8,7 @@ import os
 from pathlib import Path
 import requests
 import threading
+import urllib.parse
 import uuid
 import zipfile
 
@@ -189,15 +191,118 @@ def get_csrf_Token(html_text):
         return meta[0].get("content")
 
 
+class Authenticator(object):
+    def __init__(self):
+        self.session: requests.session = None
+
+    def authenticate(self) -> str:
+        """Authenticate.
+
+        Returns:
+            Tuple of login data and session id.
+            These two informations can be use to forge further requests
+        """
+        return None
+
+
+class DefaultAuthenticator(Authenticator):
+    def __init__(
+        self, login_url: str, username: str, password: str, verify: bool = True
+    ):
+        """Use the default login form of the community edition.
+
+        Args:
+            login_url: full url where the login form can be found
+            username: username to use (an email address)
+            password: the password to use
+            verify: True to enable SSL verification (use False for self-signed
+                testing instance)
+        """
+        super().__init__()
+        self.login_url = login_url
+        self.username = username
+        self.password = password
+        self.verify = verify
+
+    def authenticate(self) -> Tuple[str, str]:
+        r = self.session.get(self.login_url, verify=self.verify)
+        self.csrf = get_csrf_Token(r.text)
+        self.login_data = dict(
+            email=self.username,
+            password=self.password,
+            _csrf=self.csrf,
+        )
+        logger.debug("try login")
+        _r = self.session.post(self.login_url, data=self.login_data, verify=self.verify)
+        _r.raise_for_status()
+        check_login_error(_r)
+        login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
+        return login_data, _r.cookies["sharelatex.sid"]
+
+
+class IrisaAuthenticator(DefaultAuthenticator):
+    """We use Gitlab as authentification backend (using OAUTH2).
+
+    In this context, the login page redirect to the login page of gitlab(irisa),
+    which in turn redirect to overleaf.  upon success we get back the project
+    page where the csrf token can be found
+    """
+
+    def __init__(
+        self, login_url: str, username: str, password: str, verify: bool = True
+    ):
+        super().__init__(login_url, username, password, verify=verify)
+
+    def authenticate(self) -> Tuple[str, str]:
+        # go to the login form
+        r = self.session.get(self.login_url, verify=self.verify)
+        gitlab_form = html.fromstring(r.text)
+        if len(gitlab_form.forms) > 0:
+            # =1 for CAS, =2 for gitlab with LDAP (LDAP is 0 => force this choice)
+            fo = gitlab_form.forms[0]
+            # execution for CAS
+            # authenticity_token for gitlab
+            if any(
+                field in fo.fields.keys()
+                for field in ["execution", "authenticity_token"]
+            ):
+                self.login_data = {name: value for name, value in fo.form_values()}
+                self.login_data["password"] = self.password
+                self.login_data["username"] = self.username
+
+                post_url = urllib.parse.urljoin(r.url, fo.action)
+                _r = self.session.post(
+                    post_url, data=self.login_data, verify=self.verify
+                )
+                _r.raise_for_status()
+                # beware that here we're redirected to a redirect page
+                # (not on sharelatex directly...)
+                # This look like this
+                # <h3 class="page-title">Redirecting</h3>
+                #   <div>
+                #       <a href="redirect_url"> Click here to redirect to
+                #       [..]
+                #
+                # In this case, let's simply "click" on the link
+                redirect_html = html.fromstring(_r.text)
+                redirect_url = redirect_html.xpath("//a")[0].get("href")
+                _r = self.session.get(redirect_url, verify=self.verify)
+                _r.raise_for_status()
+                check_login_error(_r)
+                login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
+                return login_data, _r.cookies["sharelatex.sid"]
+
+
 class SyncClient:
     def __init__(
         self,
         *,
         base_url=BASE_URL,
-        login_path="login",
-        username=None,
-        password=None,
-        verify=True,
+        login_path="/login",
+        username: str = None,
+        password: str = None,
+        verify: bool = True,
+        authenticator: Authenticator = None,
     ):
         """Creates the client.
 
@@ -209,6 +314,8 @@ class SyncClient:
             username (str): Username of the user (the email)
             password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
+            authenticator Authenticator to use
+
         """
         if base_url == "":
             raise Exception("projet_url is not well formed or missing")
@@ -221,75 +328,18 @@ class SyncClient:
 
         # build the client and login
         self.client = requests.session()
-        import urllib.parse
+        if authenticator is None:
+            # build a default authenticator based on the
+            # given credentials
+            login_url = urllib.parse.urljoin(self.base_url, login_path)
+            authenticator = DefaultAuthenticator(
+                login_url, username, password, verify=self.verify
+            )
+            # set the session to use for authentication
 
-        login_url = urllib.parse.urljoin(self.base_url, login_path)
-
-        # Retrieve the CSRF token first
-        r = self._get(login_url, verify=self.verify)
-
-        # NOTE(msimonin): The goal of the code below is to
-        # 1) Authenticate to the sharelatex service
-        # 2) Retrieve the csrf token (used in subsequent requests)
-        # Authentication is performed differently depending on the
-        # authentication mode deployed with sharelatex.  We mustn't attempt to
-        # autodetect the authentification methode, instead it should be a
-        # parameter of the constructor.
-        # We can think to different Authenticator:
-        #   - DefaultAuthenticator will scrape the default login page of Sharelatex
-        #   - IrisaAuthenticator will scrape the gitlab authentification page
-        #     (sharelatex is deployed with OAUTH2/Gitlab authentification)
-        #
-        # This could be used as follow:
-        #
-        # csrf = authenticator.login(username, password, verify=verify)
-        #
-        self.csrf = get_csrf_Token(r.text)
-        if self.csrf:
-            self.login_data = {
-                "email": username,
-                "password": password,
-                "_csrf": self.csrf,
-            }
-            logger.debug("try login")
-            _r = self._post(login_url, data=self.login_data, verify=self.verify)
-            _r.raise_for_status()
-            check_login_error(_r)
-            self.csrf = get_csrf_Token(_r.text)
-            # inject the new csrf for subsequent requests
-            self.login_data["_csrf"] = self.csrf
-        else:
-            # try to find CAS form
-            logger.debug("try CAS or gitlab login")
-            a = html.fromstring(r.text)
-            if len(a.forms) > 0:
-                # =1 for CAS, =2 for gitlab with LDAP (LDAP is 0 => force this choice)
-                fo = a.forms[0]
-                # execution for CAS
-                # authenticity_token for gitlab
-                if any(
-                    field in fo.fields.keys()
-                    for field in ["execution", "authenticity_token"]
-                ):
-                    self.login_data = {name: value for name, value in fo.form_values()}
-                    self.login_data["password"] = password
-                    self.login_data["username"] = username
-
-                    post_url = urllib.parse.urljoin(r.url, fo.action)
-                    _r = self._post(post_url, data=self.login_data, verify=self.verify)
-                    _r.raise_for_status()
-                    self.csrf = get_csrf_Token(_r.text)
-                    if self.csrf is None:
-                        raise Exception("csrf token error")
-                else:
-                    raise Exception(
-                        "authentication page not found or not yet supported"
-                    )
-            else:
-                raise Exception("authentication page not found")
-
-        self.login_data.pop("password")
-        self.sharelatex_sid = _r.cookies["sharelatex.sid"]
+        authenticator.session = self.client
+        self.login_data, session_id = authenticator.authenticate()
+        self.sharelatex_sid = session_id
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
