@@ -1,6 +1,6 @@
 from json.decoder import JSONDecodeError
 import logging
-from typing import Tuple
+from typing import Dict, Tuple
 
 # try to find CAS form
 from lxml import html
@@ -195,11 +195,11 @@ class Authenticator(object):
     def __init__(self):
         self.session: requests.session = None
 
-    def authenticate(self) -> str:
+    def authenticate(self) -> Tuple[str, Dict]:
         """Authenticate.
 
         Returns:
-            Tuple of login data and session id.
+            Tuple of login data and the cookie (containing the session id)
             These two informations can be use to forge further requests
         """
         return None
@@ -207,7 +207,7 @@ class Authenticator(object):
 
 class DefaultAuthenticator(Authenticator):
     def __init__(
-        self, login_url: str, username: str, password: str, verify: bool = True
+        self, login_url: str, username: str, password: str, verify: bool = True, sid_name="sharelatex.sid"
     ):
         """Use the default login form of the community edition.
 
@@ -223,6 +223,7 @@ class DefaultAuthenticator(Authenticator):
         self.username = username
         self.password = password
         self.verify = verify
+        self.sid_name = sid_name
 
     def authenticate(self) -> Tuple[str, str]:
         r = self.session.get(self.login_url, verify=self.verify)
@@ -237,7 +238,9 @@ class DefaultAuthenticator(Authenticator):
         _r.raise_for_status()
         check_login_error(_r)
         login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
-        return login_data, _r.cookies["sharelatex.sid"]
+        return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+
+
 
 
 class IrisaAuthenticator(DefaultAuthenticator):
@@ -338,8 +341,7 @@ class SyncClient:
             # set the session to use for authentication
 
         authenticator.session = self.client
-        self.login_data, session_id = authenticator.authenticate()
-        self.sharelatex_sid = session_id
+        self.login_data, self.cookie = authenticator.authenticate()
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
@@ -378,7 +380,7 @@ class SyncClient:
             self.base_url,
             verify=self.verify,
             Namespace=Namespace,
-            cookies={"sharelatex.sid": self.sharelatex_sid},
+            cookies=self.cookie,
             headers=headers,
         ) as socketIO:
 
@@ -479,7 +481,7 @@ class SyncClient:
             self.base_url,
             verify=self.verify,
             Namespace=Namespace,
-            cookies={"sharelatex.sid": self.sharelatex_sid},
+            cookies=self.cookie,
             headers=headers,
         ) as socketIO:
 
@@ -606,7 +608,7 @@ class SyncClient:
         files = {"qqfile": (filename, open(path, "rb"), mime)}
         params = {
             "folder_id": folder_id,
-            "_csrf": self.csrf,
+            "_csrf": self.login_data["_csrf"],
             "qquid": str(uuid.uuid4()),
             "qqfilename": filename,
             "qqtotalfilesize": os.path.getsize(path),
@@ -635,7 +637,7 @@ class SyncClient:
             - 400 the folder already exists
         """
         url = f"{self.base_url}/project/{project_id}/folder"
-        data = {"parent_folder_id": parent_folder, "_csrf": self.csrf, "name": name}
+        data = {"parent_folder_id": parent_folder, "_csrf": self.login_data["_csrf"], "name": name}
         logger.debug(data)
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -686,7 +688,7 @@ class SyncClient:
         mime = "application/zip"
         files = {"qqfile": (filename, open(path, "rb"), mime)}
         params = {
-            "_csrf": self.csrf,
+            "_csrf": self.login_data["_csrf"],
             "qquid": str(uuid.uuid4()),
             "qqfilename": filename,
             "qqtotalfilesize": os.path.getsize(path),
@@ -717,7 +719,7 @@ class SyncClient:
         data = {
             "email": email,
             "privileges": "readAndWrite" if can_edit else "readOnly",
-            "_csrf": self.csrf,
+            "_csrf":self.login_data["_csrf"]
         }
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -740,7 +742,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/compile"
 
-        data = {"_csrf": self.csrf}
+        data = {"_csrf": self.login_data["_csrf"]}
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
@@ -771,7 +773,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/settings"
 
-        data = {"_csrf": self.csrf}
+        data = {"_csrf": self.login_data["_csrf"]}
         data.update(settings)
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -792,7 +794,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/clone"
 
-        data = {"_csrf": self.csrf, "projectName": project_name}
+        data = {"_csrf": self.login_data["_csrf"], "projectName": project_name}
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
@@ -806,7 +808,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/new"
 
-        data = {"_csrf": self.csrf, "projectName": project_name, "template": "example"}
+        data = {"_csrf": self.login_data["_csrf"], "projectName": project_name, "template": "example"}
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
@@ -819,7 +821,7 @@ class SyncClient:
             project_id (str): The project id of the project to delete
         """
         url = f"{self.base_url}/project/{project_id}"
-        data = {"_csrf": self.csrf}
+        data = {"_csrf": self.login_data["_csrf"]}
         params = {"forever": forever}
         r = self._delete(url, data=data, params=params, verify=self.verify)
         r.raise_for_status()
