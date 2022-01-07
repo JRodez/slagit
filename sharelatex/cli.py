@@ -1,7 +1,6 @@
 import logging
 import os
 from pathlib import Path
-import urllib.parse
 
 import getpass
 
@@ -230,7 +229,6 @@ def refresh_account_information(
     if username is None:
         username = input(PROMPT_USERNAME)
     config.set_value(SLATEX_SECTION, "username", username)
-    import urllib.parse
 
     if password is None:
         if not ignore_saved_user_info:
@@ -275,7 +273,10 @@ def getClient(
             client = None
             logger.warning("{}  : attempt # {} ".format(inst, i + 1))
             auth_type, username, password = refresh_account_information(
-                repo, save_password=save_password, ignore_saved_user_info=True
+                repo,
+                auth_type,
+                save_password=save_password,
+                ignore_saved_user_info=True,
             )
     if client is None:
         raise Exception("maximum number of authentication attempts is reached")
@@ -319,16 +320,8 @@ def authentication_options(function):
     function = click.option(
         "--auth_type",
         "-a",
-        default="irisa",
+        default=None,
         help="""Authentification type (default|irisa).""",
-    )(function)
-
-    function = click.option(
-        "--login-path",
-        "-l",
-        default="login",
-        help="""login path to concat with sharelatex server url,
-value by default is login""",
     )(function)
 
     function = click.option(
@@ -407,7 +400,6 @@ def _pull(repo, client, project_id):
 def compile(
     project_id,
     auth_type,
-    login_path,
     username,
     password,
     save_password,
@@ -417,8 +409,8 @@ def compile(
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    login_path, username, password = refresh_account_information(
-        repo, login_path, username, password, save_password, ignore_saved_user_info
+    auth_type, username, password = refresh_account_information(
+        repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
         repo,
@@ -449,7 +441,6 @@ def share(
     email,
     can_edit,
     auth_type,
-    login_path,
     username,
     password,
     save_password,
@@ -461,8 +452,8 @@ def share(
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, project_id=project_id
     )
-    login_path, username, password = refresh_account_information(
-        repo, login_path, username, password, save_password, ignore_saved_user_info
+    auth_type, username, password = refresh_account_information(
+        repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
         repo,
@@ -491,7 +482,6 @@ def share(
 @authentication_options
 @log_options
 def pull(
-    login_path,
     auth_type,
     username,
     password,
@@ -502,8 +492,8 @@ def pull(
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    login_path, username, password = refresh_account_information(
-        repo, login_path, username, password, save_password, ignore_saved_user_info
+    auth_type, username, password = refresh_account_information(
+        repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
         repo,
@@ -549,7 +539,6 @@ def clone(
     projet_url,
     directory,
     auth_type,
-    login_path,
     username,
     password,
     save_password,
@@ -576,8 +565,8 @@ def clone(
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, base_url, project_id, https_cert_check
     )
-    login_path, username, password = refresh_account_information(
-        repo, login_path, username, password, save_password, ignore_saved_user_info
+    auth_type, username, password = refresh_account_information(
+        repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
 
     try:
@@ -616,7 +605,6 @@ This works as follow:
 def push(
     force,
     auth_type,
-    login_path,
     username,
     password,
     save_password,
@@ -658,8 +646,8 @@ def push(
 
     repo = get_clean_repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
-    login_path, username, password = refresh_account_information(
-        repo, login_path, username, password, save_password, ignore_saved_user_info
+    auth_type, username, password = refresh_account_information(
+        repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
 
     client = getClient(
@@ -733,7 +721,6 @@ def new(
     base_url,
     https_cert_check,
     auth_type,
-    login_path,
     username,
     password,
     save_password,
@@ -744,8 +731,8 @@ def new(
     repo = get_clean_repo()
 
     refresh_project_information(repo, base_url, "NOT SET", https_cert_check)
-    login_path, username, password = refresh_account_information(
-        repo, login_path, username, password, save_password, ignore_saved_user_info
+    auth_type, username, password = refresh_account_information(
+        repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
     client = getClient(
         repo,

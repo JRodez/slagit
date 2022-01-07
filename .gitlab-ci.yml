@@ -76,6 +76,23 @@ py38-functionnal:
     TOXENV: py38
   allow_failure: true
 
+py39-functionnal:
+  <<: *base-functionnal
+  stage: test
+  image: python:3.8
+  variables:
+    TOXENV: py39
+  allow_failure: true
+
+
+py310-functionnal:
+  <<: *base-functionnal
+  stage: test
+  image: python:3.10
+  variables:
+    TOXENV: py310
+  allow_failure: true
+
 ########################################################################################
 #
 # Release zone:

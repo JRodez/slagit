@@ -313,7 +313,7 @@ def get_authenticator_class(auth_type: str):
     elif auth_type == "irisa":
         return IrisaAuthenticator
     else:
-        raise ValueError("auth_type must be in (default|irisa)")
+        raise ValueError(f"auth_type must be in (default|irisa) found {auth_type}")
 
 
 class SyncClient:
