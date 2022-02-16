@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from git import Repo
 import logging
 import os
-from subprocess import check_call
+from subprocess import check_call, check_output
 import tempfile
 import unittest
 
@@ -84,7 +84,9 @@ def project(project_name, branch=None):
             check_call("git config --local user.email 'test@test.com'", shell=True)
             check_call("git config --local user.name 'me'", shell=True)
             if branch is not None:
-                check_call(f"git checkout -b {branch}", shell=True)
+                # use branch instead of the original one
+                check_call(f"git branch -m {branch}", shell=True)
+
             project.repo = Repo()
             yield project
         except Exception as e:
