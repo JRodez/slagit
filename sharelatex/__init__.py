@@ -1,6 +1,6 @@
 from json.decoder import JSONDecodeError
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 # try to find CAS form
 from lxml import html
@@ -186,9 +186,8 @@ def get_csrf_Token(html_text):
     parsed = html.fromstring(html_text)
     meta = parsed.xpath("//meta[@name='ol-csrfToken']")
     if not meta:
-        return None
-    else:
-        return meta[0].get("content")
+        raise ValueError("Unable to find the csrf token")
+    return meta[0].get("content")
 
 
 class Authenticator(object):
@@ -261,8 +260,15 @@ class IrisaAuthenticator(DefaultAuthenticator):
     """We use Gitlab as authentification backend (using OAUTH2).
 
     In this context, the login page redirect to the login page of gitlab(irisa),
-    which in turn redirect to overleaf.  upon success we get back the project
+    which in turn redirect to overleaf. upon success we get back the project
     page where the csrf token can be found
+
+    More precisely there are two login forms available
+        - one for LDAP account (inria)
+        - one for Local account (external user)
+    As a consequence we adopt the following strategy to authenticate:
+    First we attempt to log with the LDAP form if that fails for any reason
+    we try to log in with the local form.
     """
 
     def __init__(
@@ -277,44 +283,78 @@ class IrisaAuthenticator(DefaultAuthenticator):
             base_url, username, password, verify=verify, login_path=login_path
         )
 
-    def authenticate(self) -> Tuple[str, str]:
-        # go to the login form
+    def _login_data_ldap(self, username, password):
+        return {"username": username, "password": password}
+
+    def _login_data_local(self, username, password):
+        return {"user[login]": username, "user[password]": password}
+
+    def _get_login_forms(self) -> Any:
         r = self.session.get(self.login_url, verify=self.verify)
         gitlab_form = html.fromstring(r.text)
-        if len(gitlab_form.forms) > 0:
-            # =1 for CAS, =2 for gitlab with LDAP (LDAP is 0 => force this choice)
-            fo = gitlab_form.forms[0]
-            # execution for CAS
-            # authenticity_token for gitlab
-            if any(
-                field in fo.fields.keys()
-                for field in ["execution", "authenticity_token"]
-            ):
-                self.login_data = {name: value for name, value in fo.form_values()}
-                self.login_data["password"] = self.password
-                self.login_data["username"] = self.username
+        if len(gitlab_form.forms) < 2:
+            raise ValueError("Expected 2 authentication forms")
+        ldap, local = gitlab_form.forms
+        return r.url, ldap, local
 
-                post_url = urllib.parse.urljoin(r.url, fo.action)
-                _r = self.session.post(
-                    post_url, data=self.login_data, verify=self.verify
-                )
-                _r.raise_for_status()
-                # beware that here we're redirected to a redirect page
-                # (not on sharelatex directly...)
-                # This look like this
-                # <h3 class="page-title">Redirecting</h3>
-                #   <div>
-                #       <a href="redirect_url"> Click here to redirect to
-                #       [..]
-                #
-                # In this case, let's simply "click" on the link
-                redirect_html = html.fromstring(_r.text)
-                redirect_url = redirect_html.xpath("//a")[0].get("href")
-                _r = self.session.get(redirect_url, verify=self.verify)
-                _r.raise_for_status()
-                check_login_error(_r)
-                login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
-                return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+    def authenticate(self):
+        try:
+            url, ldap_form, _ = self._get_login_forms()
+            return self._authenticate(url, ldap_form, self._login_data_ldap)
+        except Exception as e:
+            logger.info(
+                f"Unable to authenticate with LDAP for {self.username}"
+                f"continuing with local account ({e})"
+            )
+
+        try:
+            url, _, local_form = self._get_login_forms()
+            return self._authenticate(url, local_form, self._login_data_local)
+        except Exception as e:
+            logger.info(
+                f"Unable to authenticate with local account for {self.username},"
+                f"leaving ({e})"
+            )
+
+        raise ValueError(f"Authentication failed for {self.username}")
+
+    def _authenticate(
+        self,
+        url: str,
+        html_form: Any,  # parsed html
+        login_data_fnc: Callable[[str, str], Dict],
+    ) -> Tuple[str, str]:
+
+        if not any(
+            field in html_form.fields.keys()
+            for field in ["execution", "authenticity_token"]
+        ):
+            raise ValueError("Executed fields not found in authentication form")
+
+        login_data = {name: value for name, value in html_form.form_values()}
+        login_data.update(login_data_fnc(self.username, self.password))
+        post_url = urllib.parse.urljoin(url, html_form.action)
+        _r = self.session.post(post_url, data=login_data, verify=self.verify)
+        _r.raise_for_status()
+        # beware that here we're redirected to a redirect page
+        # (not on sharelatex directly...)
+        # This look like this
+        # <h3 class="page-title">Redirecting</h3>
+        #   <div>
+        #       <a href="redirect_url"> Click here to redirect to
+        #       [..]
+        #
+        # In this case, let's simply "click" on the link
+        redirect_html = html.fromstring(_r.text)
+        redirect_url = redirect_html.xpath("//a")[0].get("href")
+        _r = self.session.get(redirect_url, verify=self.verify)
+        _r.raise_for_status()
+        check_login_error(_r)
+        _csrf = get_csrf_Token(_r.text)
+        assert _csrf is not None
+
+        login_data = dict(email=self.username, _csrf=_csrf)
+        return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
 def get_authenticator_class(auth_type: str):
