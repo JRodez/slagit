@@ -1,6 +1,6 @@
 from json.decoder import JSONDecodeError
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 # try to find CAS form
 from lxml import html
@@ -192,8 +192,18 @@ def get_csrf_Token(html_text):
 
 
 class Authenticator(object):
-    def __init__(self):
-        self.session: requests.session = None
+    def __init__(self, session: Optional[requests.session] = None):
+        self._session: requests.session = session
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = requests.session()
+        return self._session
+
+    @session.setter
+    def session(self, session):
+        self._session = session
 
     def authenticate(self) -> Tuple[str, Dict]:
         """Authenticate.
@@ -355,8 +365,8 @@ class SyncClient:
             authenticator = DefaultAuthenticator(
                 self.base_url, username, password, verify=self.verify
             )
-            # set the session to use for authentication
 
+        # set the session to use for authentication
         authenticator.session = self.client
         self.login_data, self.cookie = authenticator.authenticate()
 
