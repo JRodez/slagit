@@ -5,6 +5,7 @@ import os
 from subprocess import check_call
 import tempfile
 import unittest
+import shlex
 
 from sharelatex import SyncClient, walk_project_data, get_authenticator_class
 
@@ -27,8 +28,8 @@ AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
 import queue
 
 CREDS = queue.Queue()
-for username, passwords in zip(USERNAMES.split(","), PASSWORDS.split(",")):
-    CREDS.put((username, passwords))
+for username, password in zip(USERNAMES.split(","), PASSWORDS.split(",")):
+    CREDS.put((username, password))
 
 
 def log(f):
@@ -97,7 +98,7 @@ def project(project_name, branch=None):
             project = Project(client, project_id, fs_path)
 
             # let's clone it
-            args = f"--auth_type={AUTH_TYPE} --username={username} --password={password} --save-password --no-https-cert-check"
+            args = f"--auth_type={AUTH_TYPE} --username={username} --password={shlex.quote(password)} --save-password --no-https-cert-check"
             check_call(f"git slatex clone {project.url} {args}", shell=True)
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
