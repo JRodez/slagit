@@ -62,7 +62,11 @@ class WebsiteUser(User):
 
     def __init__(self, environment):
         super().__init__(environment)
-        self.client = LocustClient()
+        try:
+            self.client = LocustClient()
+        except Exception as e:
+            events.request_failure.fire(request_type="syncclient", name="new", response_time=0, exception=e)
+
 
 
     @task(1)
