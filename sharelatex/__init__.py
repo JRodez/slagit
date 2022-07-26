@@ -391,15 +391,19 @@ class IrisaAuthenticator(DefaultAuthenticator):
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
+AUTH_DICT = {
+    "gitlab": IrisaAuthenticator,
+    "community": DefaultAuthenticator,
+    "legacy": LegacyAuthenticator,
+}
+
+
 def get_authenticator_class(auth_type: str):
-    if auth_type == "default":
-        return DefaultAuthenticator
-    elif auth_type == "irisa":
-        return IrisaAuthenticator
-    elif auth_type == "legacy":
-        return LegacyAuthenticator
-    else:
-        raise ValueError(f"auth_type must be in (default|irisa) found {auth_type}")
+    auth_type = auth_type.lower()
+    try:
+        return AUTH_DICT[auth_type]
+    except KeyError:
+        raise ValueError(f"auth_type must be in found {list(AUTH_DICT.keys())}")
 
 
 class SyncClient:

@@ -35,7 +35,8 @@ SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
-PROMPT_AUTH_TYPE = "Authentification type (default|irisa|legacy): "
+PROMPT_AUTH_TYPE = "Authentification type (*gitlab*|community|legacy): "
+DEFAULT_AUTH_TYPE = "gitlab"
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
@@ -219,6 +220,8 @@ def refresh_account_information(
                 auth_type = u
     if auth_type is None:
         auth_type = input(PROMPT_AUTH_TYPE)
+        if not auth_type:
+            auth_type = DEFAULT_AUTH_TYPE
     config.set_value(SLATEX_SECTION, "authType", auth_type)
 
     if username is None:
@@ -732,7 +735,7 @@ def new(
 
     refresh_project_information(repo, base_url, "NOT SET", https_cert_check)
     auth_type, username, password = refresh_account_information(
-        repo, auth_type, username, password, save_password, ignore_saved_user_info
+        repo, auth_type, username, password, save_password, True
     )
     client = getClient(
         repo,
