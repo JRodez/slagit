@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from lxml import html
 import os
 from pathlib import Path
+import re
 import requests
 import threading
 import urllib.parse
@@ -183,11 +184,27 @@ def get_csrf_Token(html_text):
     Returns:
         the csrf token (str) if found in html_text or None if not
     """
-    parsed = html.fromstring(html_text)
-    meta = parsed.xpath("//meta[@name='ol-csrfToken']")
-    if not meta:
-        raise ValueError("Unable to find the csrf token")
-    return meta[0].get("content")
+    """Retrieve csrf token from a html text page from sharelatex server.
+
+    Args:
+        html_text (str): The text from a html page of sharelatex server
+    Returns:
+        the csrf token (str) if found in html_text or None if not
+    """
+    if "csrfToken" in html_text:
+        csrfToken = re.search('(?<=csrfToken = ").{36}', html_text)
+        if csrfToken is not None:
+            return csrfToken.group(0)
+        else:
+            # check is overleaf token is here
+            parsed = html.fromstring(html_text)
+            meta = parsed.xpath("//meta[@name='ol-csrfToken']")
+            if meta:
+                return meta[0].get("content")
+            else:
+                return None
+    else:
+        return None
 
 
 class Authenticator(object):
@@ -253,6 +270,23 @@ class DefaultAuthenticator(Authenticator):
         _r.raise_for_status()
         check_login_error(_r)
         login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
+        return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+
+
+class LegacyAuthenticator(DefaultAuthenticator):
+    def authenticate(self) -> Tuple[str, str]:
+        r = self.session.get(self.login_url, verify=self.verify)
+        self.csrf = get_csrf_Token(r.text)
+        self.login_data = dict(
+            email=self.username,
+            password=self.password,
+            _csrf=self.csrf,
+        )
+        logger.debug("try login")
+        _r = self.session.post(self.login_url, data=self.login_data, verify=self.verify)
+        _r.raise_for_status()
+        check_login_error(_r)
+        login_data = dict(email=self.username, _csrf=self.csrf)
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
@@ -362,6 +396,8 @@ def get_authenticator_class(auth_type: str):
         return DefaultAuthenticator
     elif auth_type == "irisa":
         return IrisaAuthenticator
+    elif auth_type == "legacy":
+        return LegacyAuthenticator
     else:
         raise ValueError(f"auth_type must be in (default|irisa) found {auth_type}")
 
