@@ -10,6 +10,7 @@ before_script:
   - pip install tox
 
 pep8:
+  tags: [ci.inria.fr, small]
   stage: test
   script:
   - tox -e pep8
@@ -26,40 +27,41 @@ pep8:
 #
 #######################################################################################
 py36-functionnal: &base-functionnal
-    stage: test
-    image: python:3.6
-    variables:
-      TOXENV: py36
-    script:
-    # Install docker programs (docker-cli, docker-compose)
-    - env
-    - apt update
-    - apt-get install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
-    - curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
-    - apt-key fingerprint 0EBFCD88
-    - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
-    - apt update
-    - apt install -y docker-ce-cli
-    - pip install --upgrade pip setuptools wheel
-    - pip install docker-compose
-    #  Install sharelatex
-    - cd sharelatex/tests
-    - docker-compose up -d
-    # Prepare the the functionnal tests
-    # -create an user
-    # -export the env variables needed by the tests
-    - docker cp create-user-with-pass.js  sharelatex:/var/www/sharelatex/web/modules/server-ce-scripts/scripts
-    # user creation isn't idempotent
-    - docker exec --workdir /var/www/sharelatex/web/modules/server-ce-scripts/scripts -i sharelatex node create-user-with-pass.js --email=joe1@inria.fr --pass=TestTest42
-    - docker exec --workdir /var/www/sharelatex/web/modules/server-ce-scripts/scripts -i sharelatex node create-user-with-pass.js --email=joe2@inria.fr --pass=TestTest42
-    - docker exec --workdir /var/www/sharelatex/web/modules/server-ce-scripts/scripts -i sharelatex node create-user-with-pass.js --email=joe3@inria.fr --pass=TestTest42
-    - export CI_BASE_URL=http://172.17.0.1:8080
-    - export CI_USERNAMES=joe1@inria.fr,joe2@inria.fr,joe3@inria.fr
-    - export CI_PASSWORDS=TestTest42,TestTest42,TestTest42
-    - export CI_AUTH_TYPE=default
-    # let's test !
-    # the python interpreter version is taken from the TOXENV var
-    - tox
+  tags: [ci.inria.fr, large]
+  stage: test
+  image: python:3.6
+  variables:
+    TOXENV: py36
+  script:
+  # Install docker programs (docker-cli, docker-compose)
+  - env
+  - apt update
+  - apt-get install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+  - curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+  - apt-key fingerprint 0EBFCD88
+  - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+  - apt update
+  - apt install -y docker-ce-cli
+  - pip install --upgrade pip setuptools wheel
+  - pip install docker-compose
+  #  Install sharelatex
+  - cd sharelatex/tests
+  - docker-compose up -d
+  # Prepare the the functionnal tests
+  # -create an user
+  # -export the env variables needed by the tests
+  - docker cp create-user-with-pass.js  sharelatex:/var/www/sharelatex/web/modules/server-ce-scripts/scripts
+  # user creation isn't idempotent
+  - docker exec --workdir /var/www/sharelatex/web/modules/server-ce-scripts/scripts -i sharelatex node create-user-with-pass.js --email=joe1@inria.fr --pass=TestTest42
+  - docker exec --workdir /var/www/sharelatex/web/modules/server-ce-scripts/scripts -i sharelatex node create-user-with-pass.js --email=joe2@inria.fr --pass=TestTest42
+  - docker exec --workdir /var/www/sharelatex/web/modules/server-ce-scripts/scripts -i sharelatex node create-user-with-pass.js --email=joe3@inria.fr --pass=TestTest42
+  - export CI_BASE_URL=http://172.17.0.1:8080
+  - export CI_USERNAMES=joe1@inria.fr,joe2@inria.fr,joe3@inria.fr
+  - export CI_PASSWORDS=TestTest42,TestTest42,TestTest42
+  - export CI_AUTH_TYPE=default
+  # let's test !
+  # the python interpreter version is taken from the TOXENV var
+  - tox
 
 py37-functionnal:
   <<: *base-functionnal
@@ -103,7 +105,7 @@ py310-functionnal:
 ##########################################################################################
 pages:
     stage: deploy
-    tags: [qlf-ci.inria.fr]
+    tags: [ci.inria.fr, small]
     only:
     - tags
     script:
@@ -116,7 +118,7 @@ pages:
 
 pypi:
     stage: deploy
-    tags: [qlf-ci.inria.fr]
+    tags: [ci.inria.fr, small]
     only:
     - tags
     script:
