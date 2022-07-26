@@ -273,7 +273,7 @@ class DefaultAuthenticator(Authenticator):
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
-class LegacyAuthenticator(DefaultAuthenticator):
+class CommunityAuthenticator(DefaultAuthenticator):
     def authenticate(self) -> Tuple[str, str]:
         r = self.session.get(self.login_url, verify=self.verify)
         self.csrf = get_csrf_Token(r.text)
@@ -290,7 +290,7 @@ class LegacyAuthenticator(DefaultAuthenticator):
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
-class IrisaAuthenticator(DefaultAuthenticator):
+class GitlabAuthenticator(DefaultAuthenticator):
     """We use Gitlab as authentification backend (using OAUTH2).
 
     In this context, the login page redirect to the login page of gitlab(irisa),
@@ -392,9 +392,9 @@ class IrisaAuthenticator(DefaultAuthenticator):
 
 
 AUTH_DICT = {
-    "gitlab": IrisaAuthenticator,
+    "gitlab": GitlabAuthenticator,
     "community": DefaultAuthenticator,
-    "legacy": LegacyAuthenticator,
+    "legacy": CommunityAuthenticator,
 }
 
 
