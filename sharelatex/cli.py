@@ -1,22 +1,17 @@
+import getpass
 import logging
 import os
-from pathlib import Path
 import tempfile
-
-import getpass
-
-from sharelatex import (
-    get_authenticator_class,
-    SyncClient,
-    walk_project_data,
-    set_logger,
-)
+from pathlib import Path
+from zipfile import ZipFile
 
 import click
+import keyring
 from git import Repo
 from git.config import cp
-from zipfile import ZipFile
-import keyring
+
+from sharelatex import (SyncClient, get_authenticator_class, set_logger,
+                        walk_project_data)
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
