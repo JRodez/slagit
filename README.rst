@@ -45,6 +45,10 @@ version of ShareLatex/Overleaf CE version. Roughly we have the following mapping
      - sharelatex/overleaf
    * - 0.Y.Z
      - 1.2.1
+   * - 1.Y.Z
+     - 2.3.1
+   * - 2.Y.Z
+     - 3.0.1
 
 Note on passwords management
 ----------------------------

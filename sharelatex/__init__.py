@@ -1,9 +1,15 @@
+from json.decoder import JSONDecodeError
 import logging
-import re
+from typing import Any, Callable, Dict, Optional, Tuple
+
+# try to find CAS form
+from lxml import html
 import os
-import requests
 from pathlib import Path
+import re
+import requests
 import threading
+import urllib.parse
 import uuid
 import zipfile
 
@@ -136,30 +142,38 @@ def walk_files(project_data):
     return walk_project_data(project_data, lambda x: x["type"] == "file")
 
 
-def check_error(json):
-    """Check if there's an error in the returned json from sharelatex.
+def check_login_error(response):
+    """Check if there's an error in the request response
 
-    This assumes json to be a dict like the following
-    {
-        "message":
-         {
-              "text": "Your email or password is incorrect. Please try again",
-              "type": "error"
-         }
-    }
+    The response text is
+    - HTML if the auth is successful
+    - json: otherwise
+        {
+            "message":
+            {
+                "text": "Your email or password is incorrect. Please try again",
+                "type": "error"
+            }
+        }
 
     Args:
-        json (dict): message returned by the sharelatex server
+        response (request response): message returned by the sharelatex server
 
     Raise:
         Exception with the corresponding text in the message
     """
-    message = json.get("message")
-    if message is None:
-        return
-    t = message.get("type")
-    if t is not None and t == "error":
-        raise Exception(message.get("text", "Unknown error"))
+    try:
+        json = response.json()
+        message = json.get("message")
+        if message is None:
+            return
+        t = message.get("type")
+        if t is not None and t == "error":
+            raise Exception(message.get("text", "Unknown error"))
+    except JSONDecodeError:
+        # this migh be a successful login here
+        logger.info("Loggin successful")
+        pass
 
 
 def get_csrf_Token(html_text):
@@ -170,10 +184,226 @@ def get_csrf_Token(html_text):
     Returns:
         the csrf token (str) if found in html_text or None if not
     """
+    """Retrieve csrf token from a html text page from sharelatex server.
+
+    Args:
+        html_text (str): The text from a html page of sharelatex server
+    Returns:
+        the csrf token (str) if found in html_text or None if not
+    """
     if "csrfToken" in html_text:
-        return re.search('(?<=csrfToken = ").{36}', html_text).group(0)
+        csrfToken = re.search('(?<=csrfToken = ").{36}', html_text)
+        if csrfToken is not None:
+            return csrfToken.group(0)
+        else:
+            # check is overleaf token is here
+            parsed = html.fromstring(html_text)
+            meta = parsed.xpath("//meta[@name='ol-csrfToken']")
+            if meta:
+                return meta[0].get("content")
+            else:
+                return None
     else:
         return None
+
+
+class Authenticator(object):
+    def __init__(self, session: Optional[requests.session] = None):
+        self._session: requests.session = session
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = requests.session()
+        return self._session
+
+    @session.setter
+    def session(self, session):
+        self._session = session
+
+    def authenticate(self) -> Tuple[str, Dict]:
+        """Authenticate.
+
+        Returns:
+            Tuple of login data and the cookie (containing the session id)
+            These two informations can be use to forge further requests
+        """
+        return None
+
+
+class DefaultAuthenticator(Authenticator):
+    def __init__(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/login",
+        sid_name="sharelatex.sid",
+    ):
+        """Use the default login form of the community edition.
+
+        Args:
+            login_url: full url where the login form can be found
+            username: username to use (an email address)
+            password: the password to use
+            verify: True to enable SSL verification (use False for self-signed
+                testing instance)
+        """
+        super().__init__()
+        self.login_url = urllib.parse.urljoin(base_url, login_path)
+        self.username = username
+        self.password = password
+        self.verify = verify
+        self.sid_name = sid_name
+
+    def authenticate(self) -> Tuple[str, str]:
+        r = self.session.get(self.login_url, verify=self.verify)
+        self.csrf = get_csrf_Token(r.text)
+        self.login_data = dict(
+            email=self.username,
+            password=self.password,
+            _csrf=self.csrf,
+        )
+        logger.debug("try login")
+        _r = self.session.post(self.login_url, data=self.login_data, verify=self.verify)
+        _r.raise_for_status()
+        check_login_error(_r)
+        login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
+        return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+
+
+class LegacyAuthenticator(DefaultAuthenticator):
+    def authenticate(self) -> Tuple[str, str]:
+        r = self.session.get(self.login_url, verify=self.verify)
+        self.csrf = get_csrf_Token(r.text)
+        self.login_data = dict(
+            email=self.username,
+            password=self.password,
+            _csrf=self.csrf,
+        )
+        logger.debug("try login")
+        _r = self.session.post(self.login_url, data=self.login_data, verify=self.verify)
+        _r.raise_for_status()
+        check_login_error(_r)
+        login_data = dict(email=self.username, _csrf=self.csrf)
+        return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+
+
+class IrisaAuthenticator(DefaultAuthenticator):
+    """We use Gitlab as authentification backend (using OAUTH2).
+
+    In this context, the login page redirect to the login page of gitlab(irisa),
+    which in turn redirect to overleaf. upon success we get back the project
+    page where the csrf token can be found
+
+    More precisely there are two login forms available
+        - one for LDAP account (inria)
+        - one for Local account (external user)
+    As a consequence we adopt the following strategy to authenticate:
+    First we attempt to log with the LDAP form if that fails for any reason
+    we try to log in with the local form.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/auth/callback/gitlab",
+    ):
+        super().__init__(
+            base_url, username, password, verify=verify, login_path=login_path
+        )
+
+    def _login_data_ldap(self, username, password):
+        return {"username": username, "password": password}
+
+    def _login_data_local(self, username, password):
+        return {"user[login]": username, "user[password]": password}
+
+    def _get_login_forms(self) -> Any:
+        r = self.session.get(self.login_url, verify=self.verify)
+        gitlab_form = html.fromstring(r.text)
+        if len(gitlab_form.forms) < 2:
+            raise ValueError("Expected 2 authentication forms")
+        ldap, local = gitlab_form.forms
+        return r.url, ldap, local
+
+    def authenticate(self):
+        try:
+            url, ldap_form, _ = self._get_login_forms()
+            return self._authenticate(url, ldap_form, self._login_data_ldap)
+        except Exception as e:
+            logger.info(
+                f"Unable to authenticate with LDAP for {self.username}"
+                f"continuing with local account ({e})"
+            )
+
+        try:
+            url, _, local_form = self._get_login_forms()
+            return self._authenticate(url, local_form, self._login_data_local)
+        except Exception as e:
+            logger.info(
+                f"Unable to authenticate with local account for {self.username},"
+                f"leaving ({e})"
+            )
+
+        raise ValueError(f"Authentication failed for {self.username}")
+
+    def _authenticate(
+        self,
+        url: str,
+        html_form: Any,  # parsed html
+        login_data_fnc: Callable[[str, str], Dict],
+    ) -> Tuple[str, str]:
+
+        if not any(
+            field in html_form.fields.keys()
+            for field in ["execution", "authenticity_token"]
+        ):
+            raise ValueError("Executed fields not found in authentication form")
+
+        login_data = {name: value for name, value in html_form.form_values()}
+        login_data.update(login_data_fnc(self.username, self.password))
+        post_url = urllib.parse.urljoin(url, html_form.action)
+        _r = self.session.post(post_url, data=login_data, verify=self.verify)
+        _r.raise_for_status()
+        # beware that here we're redirected to a redirect page
+        # (not on sharelatex directly...)
+        # This look like this
+        # <h3 class="page-title">Redirecting</h3>
+        #   <div>
+        #       <a href="redirect_url"> Click here to redirect to
+        #       [..]
+        #
+        # In this case, let's simply "click" on the link
+        redirect_html = html.fromstring(_r.text)
+        redirect_url = redirect_html.xpath("//a")[0].get("href")
+        _r = self.session.get(redirect_url, verify=self.verify)
+        _r.raise_for_status()
+        check_login_error(_r)
+        _csrf = get_csrf_Token(_r.text)
+        assert _csrf is not None
+
+        login_data = dict(email=self.username, _csrf=_csrf)
+        return login_data, {self.sid_name: _r.cookies[self.sid_name]}
+
+
+AUTH_DICT = {
+    "gitlab": IrisaAuthenticator,
+    "community": DefaultAuthenticator,
+    "legacy": LegacyAuthenticator,
+}
+
+
+def get_authenticator_class(auth_type: str):
+    auth_type = auth_type.lower()
+    try:
+        return AUTH_DICT[auth_type]
+    except KeyError:
+        raise ValueError(f"auth_type must be in found {list(AUTH_DICT.keys())}")
 
 
 class SyncClient:
@@ -181,10 +411,10 @@ class SyncClient:
         self,
         *,
         base_url=BASE_URL,
-        login_path="login",
-        username=None,
-        password=None,
-        verify=True,
+        username: str = None,
+        password: str = None,
+        verify: bool = True,
+        authenticator: Authenticator = None,
     ):
         """Creates the client.
 
@@ -196,11 +426,12 @@ class SyncClient:
             username (str): Username of the user (the email)
             password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
+            authenticator Authenticator to use
+
         """
         if base_url == "":
             raise Exception("projet_url is not well formed or missing")
         self.base_url = base_url
-        self.login_path = login_path
         self.verify = verify
 
         # Used in _get, _post... to add common headers
@@ -208,57 +439,16 @@ class SyncClient:
 
         # build the client and login
         self.client = requests.session()
-        import urllib.parse
+        if authenticator is None:
+            # build a default authenticator based on the
+            # given credentials
+            authenticator = DefaultAuthenticator(
+                self.base_url, username, password, verify=self.verify
+            )
 
-        login_url = urllib.parse.urljoin(self.base_url, login_path)
-
-        # Retrieve the CSRF token first
-        r = self._get(login_url, verify=self.verify)
-        self.csrf = get_csrf_Token(r.text)
-        if self.csrf:
-            self.login_data = {
-                "email": username,
-                "password": password,
-                "_csrf": self.csrf,
-            }
-            logger.debug(" try login")
-            _r = self._post(login_url, data=self.login_data, verify=self.verify)
-            _r.raise_for_status()
-            check_error(_r.json())
-        else:
-            # try to find CAS form
-            from lxml import html
-
-            logger.debug(" try CAS or gitlab login")
-            a = html.fromstring(r.text)
-            if len(a.forms) > 0:
-                # =1 for CAS, =2 for gitlab with LDAP (LDAP is 0 => force this choice)
-                fo = a.forms[0]
-                # execution for CAS
-                # authenticity_token for gitlab
-                if any(
-                    field in fo.fields.keys()
-                    for field in ["execution", "authenticity_token"]
-                ):
-                    self.login_data = {name: value for name, value in fo.form_values()}
-                    self.login_data["password"] = password
-                    self.login_data["username"] = username
-
-                    post_url = urllib.parse.urljoin(r.url, fo.action)
-                    _r = self._post(post_url, data=self.login_data, verify=self.verify)
-                    _r.raise_for_status()
-                    self.csrf = get_csrf_Token(_r.text)
-                    if self.csrf is None:
-                        raise Exception("csrf token error")
-                else:
-                    raise Exception(
-                        "authentication page not found or not yet supported"
-                    )
-            else:
-                raise Exception("authentication page not found")
-
-        self.login_data.pop("password")
-        self.sharelatex_sid = _r.cookies["sharelatex.sid"]
+        # set the session to use for authentication
+        authenticator.session = self.client
+        self.login_data, self.cookie = authenticator.authenticate()
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
@@ -297,7 +487,7 @@ class SyncClient:
             self.base_url,
             verify=self.verify,
             Namespace=Namespace,
-            cookies={"sharelatex.sid": self.sharelatex_sid},
+            cookies=self.cookie,
             headers=headers,
         ) as socketIO:
 
@@ -398,7 +588,7 @@ class SyncClient:
             self.base_url,
             verify=self.verify,
             Namespace=Namespace,
-            cookies={"sharelatex.sid": self.sharelatex_sid},
+            cookies=self.cookie,
             headers=headers,
         ) as socketIO:
 
@@ -525,7 +715,7 @@ class SyncClient:
         files = {"qqfile": (filename, open(path, "rb"), mime)}
         params = {
             "folder_id": folder_id,
-            "_csrf": self.csrf,
+            "_csrf": self.login_data["_csrf"],
             "qquid": str(uuid.uuid4()),
             "qqfilename": filename,
             "qqtotalfilesize": os.path.getsize(path),
@@ -554,7 +744,11 @@ class SyncClient:
             - 400 the folder already exists
         """
         url = f"{self.base_url}/project/{project_id}/folder"
-        data = {"parent_folder_id": parent_folder, "_csrf": self.csrf, "name": name}
+        data = {
+            "parent_folder_id": parent_folder,
+            "_csrf": self.login_data["_csrf"],
+            "name": name,
+        }
         logger.debug(data)
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -605,7 +799,7 @@ class SyncClient:
         mime = "application/zip"
         files = {"qqfile": (filename, open(path, "rb"), mime)}
         params = {
-            "_csrf": self.csrf,
+            "_csrf": self.login_data["_csrf"],
             "qquid": str(uuid.uuid4()),
             "qqfilename": filename,
             "qqtotalfilesize": os.path.getsize(path),
@@ -636,7 +830,7 @@ class SyncClient:
         data = {
             "email": email,
             "privileges": "readAndWrite" if can_edit else "readOnly",
-            "_csrf": self.csrf,
+            "_csrf": self.login_data["_csrf"],
         }
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -659,7 +853,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/compile"
 
-        data = {"_csrf": self.csrf}
+        data = {"_csrf": self.login_data["_csrf"]}
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
@@ -690,7 +884,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/settings"
 
-        data = {"_csrf": self.csrf}
+        data = {"_csrf": self.login_data["_csrf"]}
         data.update(settings)
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
@@ -711,7 +905,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/clone"
 
-        data = {"_csrf": self.csrf, "projectName": project_name}
+        data = {"_csrf": self.login_data["_csrf"], "projectName": project_name}
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
@@ -725,7 +919,11 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/new"
 
-        data = {"_csrf": self.csrf, "projectName": project_name, "template": "example"}
+        data = {
+            "_csrf": self.login_data["_csrf"],
+            "projectName": project_name,
+            "template": "example",
+        }
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
         response = r.json()
@@ -738,7 +936,7 @@ class SyncClient:
             project_id (str): The project id of the project to delete
         """
         url = f"{self.base_url}/project/{project_id}"
-        data = {"_csrf": self.csrf}
+        data = {"_csrf": self.login_data["_csrf"]}
         params = {"forever": forever}
         r = self._delete(url, data=data, params=params, verify=self.verify)
         r.raise_for_status()
