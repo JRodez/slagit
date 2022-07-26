@@ -1,6 +1,7 @@
 import logging
 import os
 from pathlib import Path
+import tempfile
 
 import getpass
 
@@ -748,18 +749,20 @@ def new(
     )
 
     iter_file = repo.tree().traverse()
-    archive_name = "%s.zip" % projectname
-    archive_path = Path(archive_name)
-    with ZipFile(str(archive_path), "w") as z:
-        for f in iter_file:
-            logger.debug(f"Adding {f.path} to the archive")
-            z.write(f.path)
 
-    response = client.upload(archive_name)
-    logger.info("Successfully uploaded %s [%s]" % (projectname, response["project_id"]))
-    archive_path.unlink()
+    with tempfile.TemporaryDirectory() as tmp:
+        archive_name = os.path.join(tmp, f"{projectname}.zip")
+        with ZipFile(archive_name, "w") as z:
+            for f in iter_file:
+                logger.debug(f"Adding {f.path} to the archive")
+                z.write(f.path)
 
-    refresh_project_information(
-        repo, base_url, response["project_id"], https_cert_check
-    )
-    update_ref(repo, message="upload")
+        response = client.upload(archive_name)
+        logger.info(
+            "Successfully uploaded %s [%s]" % (projectname, response["project_id"])
+        )
+
+        refresh_project_information(
+            repo, base_url, response["project_id"], https_cert_check
+        )
+        update_ref(repo, message="upload")
