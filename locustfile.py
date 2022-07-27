@@ -14,18 +14,19 @@ USERNAME = os.environ.get("CI_USERNAME")
 PASSWORD = os.environ.get("CI_PASSWORD")
 AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
 
-class LocustClient(SyncClient):
 
+class LocustClient(SyncClient):
     def __init__(self):
-        authenticator = IrisaAuthenticator(base_url=BASE_URL,
-                                           username=USERNAME,
-                                           password=PASSWORD,
-                                           verify=False)
-        super(LocustClient, self).__init__(base_url=BASE_URL,
-                                           username=USERNAME,
-                                           password=PASSWORD,
-                                           verify=False,
-                                           authenticator=authenticator)
+        authenticator = IrisaAuthenticator(
+            base_url=BASE_URL, username=USERNAME, password=PASSWORD, verify=False
+        )
+        super(LocustClient, self).__init__(
+            base_url=BASE_URL,
+            username=USERNAME,
+            password=PASSWORD,
+            verify=False,
+            authenticator=authenticator,
+        )
 
     def __getattribute__(self, name):
         """From https://docs.locust.io/en/stable/testing-other-systems.html#sample-xml-rpc-locust-client
@@ -39,6 +40,7 @@ class LocustClient(SyncClient):
         """
         attr = super(LocustClient, self).__getattribute__(name)
         if inspect.ismethod(attr):
+
             def wrapper(*args, **kwargs):
                 start_time = time.time()
                 result = None
@@ -46,11 +48,22 @@ class LocustClient(SyncClient):
                     result = attr(*args, **kwargs)
                 except Exception as e:
                     total_time = int((time.time() - start_time) * 1000)
-                    events.request_failure.fire(request_type="syncclient", name=name, response_time=total_time, exception=e)
+                    events.request_failure.fire(
+                        request_type="syncclient",
+                        name=name,
+                        response_time=total_time,
+                        exception=e,
+                    )
                 finally:
                     total_time = int((time.time() - start_time) * 1000)
-                    events.request_success.fire(request_type="syncclient", name=name, response_time=total_time, response_length=0)
+                    events.request_success.fire(
+                        request_type="syncclient",
+                        name=name,
+                        response_time=total_time,
+                        response_length=0,
+                    )
                 return result
+
             return wrapper
         else:
             return attr
@@ -65,9 +78,9 @@ class WebsiteUser(User):
         try:
             self.client = LocustClient()
         except Exception as e:
-            events.request_failure.fire(request_type="syncclient", name="new", response_time=0, exception=e)
-
-
+            events.request_failure.fire(
+                request_type="syncclient", name="new", response_time=0, exception=e
+            )
 
     @task(1)
     def compile(self):

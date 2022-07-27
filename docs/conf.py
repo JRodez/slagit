@@ -46,9 +46,9 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = u"sharelatex"
-copyright = u"2018, Matthieu Simonin, Guillermo Andrade"
-author = u"Matthieu Simonin, Guillermo Andrade"
+project = "sharelatex"
+copyright = "2018, Matthieu Simonin, Guillermo Andrade"
+author = "Matthieu Simonin, Guillermo Andrade"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -145,8 +145,8 @@ latex_documents = [
     (
         master_doc,
         "sharelatex.tex",
-        u"sharelatex Documentation",
-        u"Matthieu Simonin, Guillermo Andrade",
+        "sharelatex Documentation",
+        "Matthieu Simonin, Guillermo Andrade",
         "manual",
     )
 ]
@@ -156,7 +156,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "sharelatex", u"sharelatex Documentation", [author], 1)]
+man_pages = [(master_doc, "sharelatex", "sharelatex Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output -------------------------------------------
@@ -168,7 +168,7 @@ texinfo_documents = [
     (
         master_doc,
         "sharelatex",
-        u"sharelatex Documentation",
+        "sharelatex Documentation",
         author,
         "sharelatex",
         "One line description of project.",
