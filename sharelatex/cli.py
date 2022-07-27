@@ -10,8 +10,12 @@ import keyring
 from git import Repo
 from git.config import cp
 
-from sharelatex import (SyncClient, get_authenticator_class, set_logger,
-                        walk_project_data)
+from sharelatex import (
+    SyncClient,
+    get_authenticator_class,
+    set_logger,
+    walk_project_data,
+)
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
@@ -208,7 +212,7 @@ def refresh_account_information(
 
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
-
+    breakpoint()
     if auth_type is None:
         if not ignore_saved_user_info:
             u = config.get_value(SLATEX_SECTION, "authType")
@@ -257,15 +261,15 @@ def getClient(
     logger.info(f"try to open session on {base_url} with {username}")
     client = None
 
-    authenticator = get_authenticator_class(auth_type)(
-        base_url, username, password, verify
-    )
+    authenticator = get_authenticator_class(auth_type)()
     for i in range(MAX_NUMBER_ATTEMPTS):
         try:
             client = SyncClient(
                 base_url=base_url,
-                authenticator=authenticator,
+                username=username,
+                password=password,
                 verify=verify,
+                authenticator=authenticator,
             )
             break
         except Exception as inst:
@@ -320,7 +324,7 @@ def authentication_options(function):
         "--auth_type",
         "-a",
         default=None,
-        help="""Authentification type (default|irisa).""",
+        help="""Authentification type (gitlab|community|legacy).""",
     )(function)
 
     function = click.option(
@@ -545,6 +549,7 @@ def clone(
     https_cert_check,
     verbose,
 ):
+    breakpoint()
     set_log_level(verbose)
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")

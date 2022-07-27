@@ -1,4 +1,3 @@
-from json.decoder import JSONDecodeError
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -28,7 +27,7 @@ def set_logger(new_logger):
     logger = new_logger
 
 
-BASE_URL = "https://sharelatex.irisa.fr"
+BASE_URL = "https://overleaf.irisa.fr"
 USER_AGENT = f"python-sharelatex {__version__}"
 
 
@@ -170,9 +169,9 @@ def check_login_error(response):
         t = message.get("type")
         if t is not None and t == "error":
             raise Exception(message.get("text", "Unknown error"))
-    except JSONDecodeError:
+    except requests.exceptions.JSONDecodeError:
         # this migh be a successful login here
-        logger.info("Loggin successful")
+        logger.info("no Login error message")
         pass
 
 
@@ -221,7 +220,13 @@ class Authenticator(object):
     def session(self, session):
         self._session = session
 
-    def authenticate(self) -> Tuple[str, Dict]:
+    def authenticate(
+        self,
+        base_url: str = None,
+        username: str = None,
+        password: str = None,
+        verify: bool = True,
+    ) -> Tuple[str, Dict]:
         """Authenticate.
 
         Returns:
@@ -234,12 +239,6 @@ class Authenticator(object):
 class DefaultAuthenticator(Authenticator):
     def __init__(
         self,
-        base_url: str,
-        username: str,
-        password: str,
-        verify: bool = True,
-        login_path="/login",
-        sid_name="sharelatex.sid",
     ):
         """Use the default login form of the community edition.
 
@@ -251,14 +250,24 @@ class DefaultAuthenticator(Authenticator):
                 testing instance)
         """
         super().__init__()
+
+    def authenticate(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/login",
+        sid_name="sharelatex.sid",
+    ) -> Tuple[str, str]:
         self.login_url = urllib.parse.urljoin(base_url, login_path)
         self.username = username
         self.password = password
         self.verify = verify
         self.sid_name = sid_name
 
-    def authenticate(self) -> Tuple[str, str]:
         r = self.session.get(self.login_url, verify=self.verify)
+
         self.csrf = get_csrf_Token(r.text)
         self.login_data = dict(
             email=self.username,
@@ -274,7 +283,21 @@ class DefaultAuthenticator(Authenticator):
 
 
 class CommunityAuthenticator(DefaultAuthenticator):
-    def authenticate(self) -> Tuple[str, str]:
+    def authenticate(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/login",
+        sid_name="sharelatex.sid",
+    ) -> Tuple[str, str]:
+        self.login_url = urllib.parse.urljoin(base_url, login_path)
+        self.username = username
+        self.password = password
+        self.verify = verify
+        self.sid_name = sid_name
+
         r = self.session.get(self.login_url, verify=self.verify)
         self.csrf = get_csrf_Token(r.text)
         self.login_data = dict(
@@ -293,7 +316,7 @@ class CommunityAuthenticator(DefaultAuthenticator):
 class GitlabAuthenticator(DefaultAuthenticator):
     """We use Gitlab as authentification backend (using OAUTH2).
 
-    In this context, the login page redirect to the login page of gitlab(irisa),
+    In this context, the login page redirect to the login page of gitlab(inria),
     which in turn redirect to overleaf. upon success we get back the project
     page where the csrf token can be found
 
@@ -305,17 +328,8 @@ class GitlabAuthenticator(DefaultAuthenticator):
     we try to log in with the local form.
     """
 
-    def __init__(
-        self,
-        base_url: str,
-        username: str,
-        password: str,
-        verify: bool = True,
-        login_path="/auth/callback/gitlab",
-    ):
-        super().__init__(
-            base_url, username, password, verify=verify, login_path=login_path
-        )
+    def __init__(self):
+        super().__init__()
 
     def _login_data_ldap(self, username, password):
         return {"username": username, "password": password}
@@ -331,7 +345,20 @@ class GitlabAuthenticator(DefaultAuthenticator):
         ldap, local = gitlab_form.forms
         return r.url, ldap, local
 
-    def authenticate(self):
+    def authenticate(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify: bool = True,
+        login_path="/auth/callback/gitlab",
+        sid_name="sharelatex.sid",
+    ):
+        self.login_url = urllib.parse.urljoin(base_url, login_path)
+        self.username = username
+        self.password = password
+        self.verify = verify
+        self.sid_name = sid_name
         try:
             url, ldap_form, _ = self._get_login_forms()
             return self._authenticate(url, ldap_form, self._login_data_ldap)
@@ -386,7 +413,7 @@ class GitlabAuthenticator(DefaultAuthenticator):
         check_login_error(_r)
         _csrf = get_csrf_Token(_r.text)
         assert _csrf is not None
-
+        logger.info("Logging successful")
         login_data = dict(email=self.username, _csrf=_csrf)
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
@@ -448,7 +475,12 @@ class SyncClient:
 
         # set the session to use for authentication
         authenticator.session = self.client
-        self.login_data, self.cookie = authenticator.authenticate()
+        self.login_data, self.cookie = authenticator.authenticate(
+            base_url=self.base_url,
+            username=username,
+            password=password,
+            verify=self.verify,
+        )
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
