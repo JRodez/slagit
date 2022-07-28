@@ -212,7 +212,6 @@ def refresh_account_information(
 
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
-    breakpoint()
     if auth_type is None:
         if not ignore_saved_user_info:
             u = config.get_value(SLATEX_SECTION, "authType")
@@ -271,7 +270,6 @@ def getClient(
                 verify=verify,
                 authenticator=authenticator,
             )
-            break
         except Exception as inst:
             client = None
             logger.warning("{}  : attempt # {} ".format(inst, i + 1))
@@ -549,7 +547,6 @@ def clone(
     https_cert_check,
     verbose,
 ):
-    breakpoint()
     set_log_level(verbose)
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
