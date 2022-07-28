@@ -283,6 +283,10 @@ class DefaultAuthenticator(Authenticator):
 
 
 class CommunityAuthenticator(DefaultAuthenticator):
+    pass
+
+
+class LegacyAuthenticator(DefaultAuthenticator):
     def authenticate(
         self,
         base_url: str,
@@ -420,8 +424,8 @@ class GitlabAuthenticator(DefaultAuthenticator):
 
 AUTH_DICT = {
     "gitlab": GitlabAuthenticator,
-    "community": DefaultAuthenticator,
-    "legacy": CommunityAuthenticator,
+    "community": CommunityAuthenticator,
+    "legacy": LegacyAuthenticator,
 }
 
 
@@ -469,9 +473,7 @@ class SyncClient:
         if authenticator is None:
             # build a default authenticator based on the
             # given credentials
-            authenticator = DefaultAuthenticator(
-                self.base_url, username, password, verify=self.verify
-            )
+            authenticator = DefaultAuthenticator()
 
         # set the session to use for authentication
         authenticator.session = self.client

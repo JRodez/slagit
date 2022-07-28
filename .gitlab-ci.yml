@@ -58,7 +58,7 @@ py36-functionnal: &base-functionnal
   - export CI_BASE_URL=http://172.17.0.1:8080
   - export CI_USERNAMES=joe1@inria.fr,joe2@inria.fr,joe3@inria.fr
   - export CI_PASSWORDS=TestTest42,TestTest42,TestTest42
-  - export CI_AUTH_TYPE=default
+  - export CI_AUTH_TYPE=community
   # let's test !
   # the python interpreter version is taken from the TOXENV var
   - tox

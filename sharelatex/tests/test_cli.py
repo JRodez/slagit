@@ -85,10 +85,14 @@ def project(project_name, branch=None):
     # First we create a client.
     # For testing purpose we disable SSL verification everywhere
     username, password = CREDS.get()
-    authenticator = get_authenticator_class(AUTH_TYPE)(
-        BASE_URL, username, password, verify=False
+    authenticator = get_authenticator_class(AUTH_TYPE)()
+    client = SyncClient(
+        base_url=BASE_URL,
+        username=username,
+        password=password,
+        authenticator=authenticator,
+        verify=False,
     )
-    client = SyncClient(base_url=BASE_URL, authenticator=authenticator, verify=False)
     with tempfile.TemporaryDirectory() as temp_path:
         os.chdir(temp_path)
         r = client.new(project_name)
