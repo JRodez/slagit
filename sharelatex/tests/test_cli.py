@@ -43,12 +43,15 @@ def log(f):
 
 
 class Project:
-    def __init__(self, client, project_id, fs_path, repo=None):
+    def __init__(self, client, project_id, fs_path, username, password, repo=None):
         self.client = client
         self.project_id = project_id
         self.fs_path = fs_path
         self.repo = repo
         self.url = f"{BASE_URL}/project/{project_id}"
+        # keep track of who created the project
+        self.username = username
+        self.password = password
 
     def get_doc_by_path(self, path):
         """Doc only."""
@@ -99,7 +102,7 @@ def project(project_name, branch=None):
         try:
             project_id = r["project_id"]
             fs_path = os.path.join(temp_path, project_id)
-            project = Project(client, project_id, fs_path)
+            project = Project(client, project_id, fs_path, username, password)
 
             # let's clone it
             args = f"--auth_type={AUTH_TYPE} --username={username} --password={shlex.quote(password)} --save-password --no-https-cert-check"
@@ -255,7 +258,12 @@ class TestCli(unittest.TestCase):
 
     @new_project()
     def test_new(self, project):
-        check_call(f"git slatex new test_new {BASE_URL}", shell=True)
+        username = project.username
+        password = project.password
+        check_call(
+            f"git slatex new test_new {BASE_URL} --username {username} --password {password} --auth_type {AUTH_TYPE}",
+            shell=True,
+        )
 
 
 class TestLib(unittest.TestCase):
