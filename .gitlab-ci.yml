@@ -41,12 +41,9 @@ py36-functionnal: &base-functionnal
   - apt-key fingerprint 0EBFCD88
   - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
   - apt update
-  - apt install -y docker-ce-cli
-  - pip install --upgrade pip setuptools wheel
-  - pip install docker-compose
-  #  Install sharelatex
+  - apt install -y docker-ce-cli  docker-compose-plugin  #  Install sharelatex
   - cd sharelatex/tests
-  - docker-compose up -d
+  - docker compose up -d
   # Prepare the the functionnal tests
   # -create an user
   # -export the env variables needed by the tests

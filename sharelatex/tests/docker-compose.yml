@@ -15,11 +15,14 @@ services:
         command: /sbin/my_init
         entrypoint: python3
         # /hack
-        depends_on:
-            mongo:
-                condition: service_healthy
-            redis:
-                condition: service_started
+        # 
+        # Since  approx 26. August 2022
+        # This seems to be problematic
+        # depends_on:
+        #     mongo:
+        #         condition: service_healthy
+        #     redis:
+        #         condition: service_started
         ports:
             - 0.0.0.0:8080:80
         links:
