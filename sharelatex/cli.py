@@ -4,6 +4,9 @@ import os
 import tempfile
 from pathlib import Path
 from zipfile import ZipFile
+import datetime
+
+import dateutil.parser
 
 import click
 import keyring
@@ -33,6 +36,24 @@ def set_log_level(verbose=0):
 
 SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
+
+
+def _commit_message(action):
+    COMMIT_MESSAGE_BASE = "python-sharelatex "
+    return COMMIT_MESSAGE_BASE + action
+
+
+COMMIT_MESSAGE_PUSH = _commit_message("push")
+COMMIT_MESSAGE_CLONE = _commit_message("clone")
+COMMIT_MESSAGE_PREPULL = _commit_message("pre pull")
+COMMIT_MESSAGE_UPLOAD = _commit_message("upload")
+COMMIT_MESSAGES = [
+    COMMIT_MESSAGE_PUSH,
+    COMMIT_MESSAGE_CLONE,
+    COMMIT_MESSAGE_PREPULL,
+    COMMIT_MESSAGE_UPLOAD,
+]
+
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
 PROMPT_AUTH_TYPE = "Authentification type (*gitlab*|community|legacy): "
@@ -329,15 +350,15 @@ def authentication_options(function):
         "--username",
         "-u",
         default=None,
-        help="""Username for sharelatex server account, if username is not provided, it will be
- asked online""",
+        help="""Username for sharelatex server account, if username is not provided,
+ it will be asked online""",
     )(function)
     function = click.option(
         "--password",
         "-p",
         default=None,
-        help="""User password for sharelatex server, if password is not provided, it will
- be asked online""",
+        help="""User password for sharelatex server, if password is not provided,
+ it will be asked online""",
     )(function)
     function = click.option(
         "--save-password/--no-save-password",
@@ -364,6 +385,117 @@ def test(verbose):
     print("print")
 
 
+def _sync_deleted_items(working_path, remote_items, files):
+    remote_path = [Path(fd["folder_path"]).joinpath(fd["name"]) for fd in remote_items]
+    logger.debug("delete only files not in remote sharelatex nor in .git")
+    for p in files:
+        p_relative = p.relative_to(working_path)
+        if not str(p_relative).startswith(".git"):
+            if p_relative not in remote_path:
+                logger.debug(f"delete {p}")
+                if p.is_dir():
+                    p.rmdir()
+                else:
+                    Path.unlink(p)
+
+
+def _get_datetime_from_git(repo, branch, files, working_path):
+    datetimes_dict = {}
+    for p in files:
+        commits = repo.iter_commits(branch)
+        p_relative = p.relative_to(working_path)
+        if not str(p_relative).startswith(".git"):
+            if p not in datetimes_dict:
+                for c in commits:
+                    re = repo.git.show("--pretty=", "--name-only", c.hexsha)
+                    if re != "":
+                        commit_file_list = re.split("\n")
+                        for cf in commit_file_list:
+                            if cf not in datetimes_dict:
+                                datetimes_dict[cf] = c.authored_datetime
+                        if p in datetimes_dict:
+                            break
+    return datetimes_dict
+
+
+def _sync_remote_files(client, project_id, working_path, remote_items, datetimes_dict):
+    remote_files = (item for item in remote_items if item["type"] == "file")
+    # TODO: build the list of file to download and then write them in a second step
+    logger.debug("check if remote files are newer that locals")
+    for remote_file in remote_files:
+        need_to_download = False
+        local_path = working_path.joinpath(remote_file["folder_path"]).joinpath(
+            remote_file["name"]
+        )
+        relative_path = str(
+            Path(remote_file["folder_path"]).joinpath(remote_file["name"])
+        )
+        if local_path.is_file():
+
+            if relative_path in datetimes_dict:
+                local_time = datetimes_dict[relative_path]
+            else:
+                local_time = datetime.datetime.fromtimestamp(
+                    local_path.stat().st_mtime, datetime.timezone.utc
+                )
+            remote_time = dateutil.parser.parse(remote_file["created"])
+            logger.debug(f"local time for {local_path} : {local_time}")
+            logger.debug(f"remote time for {local_path} : {remote_time}")
+            if local_time < remote_time:
+                need_to_download = True
+        else:
+            need_to_download = True
+        if need_to_download:
+            logger.info(f"download from server file to update {local_path}")
+            client.get_file(project_id, remote_file["_id"], dest_path=local_path)
+            # TODO: set local time for downloaded file to remote_time
+
+
+def _sync_remote_docs(
+    client, project_id, working_path, remote_items, update_data, datetimes_dict
+):
+    remote_docs = (item for item in remote_items if item["type"] == "doc")
+    logger.debug("check if remote documents are newer that locals")
+    for remote_doc in remote_docs:
+        doc_id = remote_doc["_id"]
+        need_to_download = False
+        local_path = working_path.joinpath(remote_doc["folder_path"]).joinpath(
+            remote_doc["name"]
+        )
+        relative_path = str(
+            Path(remote_doc["folder_path"]).joinpath(remote_doc["name"])
+        )
+        if local_path.is_file():
+            if relative_path in datetimes_dict:
+                local_time = datetimes_dict[relative_path]
+            else:
+                local_time = datetime.datetime.fromtimestamp(
+                    local_path.stat().st_mtime, datetime.timezone.utc
+                )
+            updates = [
+                update["meta"]["end_ts"]
+                for update in update_data["updates"]
+                if doc_id in update["docs"]
+            ]
+            if len(updates) > 0:
+                remote_time = datetime.datetime.fromtimestamp(
+                    updates[0] / 1000, datetime.timezone.utc
+                )
+                logger.debug(f"local time for {local_path} : {local_time}")
+                logger.debug(f"remote time for {local_path} : {remote_time}")
+                if local_time < remote_time:
+                    need_to_download = True
+            # elif not local_path.is_file():
+            #     remote_time = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            logger.debug(f"local path {local_path} is missing, need to download")
+            need_to_download = True
+        if need_to_download:
+            logger.info(f"download from server file to update {local_path}")
+            client.get_document(project_id, doc_id, dest_path=local_path)
+        # TODO: set local time for downloaded document to remote_time
+
+
 def _pull(repo, client, project_id):
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         logger.error(repo.git.status())
@@ -375,21 +507,71 @@ def _pull(repo, client, project_id):
     git = repo.git
     active_branch = repo.active_branch.name
     git.checkout(SYNC_BRANCH)
+    working_path = Path(repo.working_tree_dir)
+    logger.debug("find last commit using remote server")
+    # for optimization purpose
+    for commit in repo.iter_commits():
+        if commit.message in COMMIT_MESSAGES:
+            logger.debug(f"find this : {commit.message} -- {commit.hexsha}")
+            break
+    logger.debug(
+        f"commit as reference for upload updates: {commit.message} -- {commit.hexsha}"
+    )
+    # mode détaché
+    git.checkout(commit)
+    try:
+        # etat du serveur actuel
+        data = client.get_project_data(project_id)
+        remote_items = [item for item in walk_project_data(data)]
+        # état (supposé) du serveur la dernière fois qu'on s'est synchronisé
+        files = list(working_path.rglob("*"))
+        files.reverse()
 
-    # delete all files but not .git !!!!
-    files = list(Path(repo.working_tree_dir).rglob("*"))
-    files.reverse()
-    for p in files:
-        if not str(p.relative_to(Path(repo.working_tree_dir))).startswith(".git"):
-            if p.is_dir():
-                p.rmdir()
-            else:
-                Path.unlink(p)
+        datetimes_dict = _get_datetime_from_git(repo, SYNC_BRANCH, files, working_path)
 
-    # TODO: try to check directly from server what file or directory
-    # is changed/delete/modify instead to reload whole project zip
-    client.download_project(project_id)
-    update_ref(repo, message="pre pull")
+        _sync_deleted_items(working_path, remote_items, files)
+
+        _sync_remote_files(
+            client, project_id, working_path, remote_items, datetimes_dict
+        )
+
+        update_data = client.get_project_update_data(project_id)
+        # TODO: change de file time stat for the corresponding time in server
+        _sync_remote_docs(
+            client, project_id, working_path, remote_items, update_data, datetimes_dict
+        )
+
+        # TODO reset en cas d'erreur ?
+        # on se place sur la branche de synchro
+        git.checkout(SYNC_BRANCH)
+    except Exception as e:
+        # hard reset ?
+        git.reset("--hard")
+        git.checkout(active_branch)
+        raise e
+    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
+        diff_index = repo.index.diff(None)
+        logger.debug(
+            f"""Modified files in server :
+            {[d.a_path for d in diff_index.iter_change_type("M")]}"""
+        )
+        logger.debug(
+            f"""New files in server :
+            {[d.a_path for d in diff_index.iter_change_type("A")]}"""
+        )
+        logger.debug(
+            f"""deleted files in server :
+            {[d.a_path for d in diff_index.iter_change_type("D")]}"""
+        )
+        logger.debug(
+            f"""renamed files in server :
+            {[d.a_path for d in diff_index.iter_change_type("R")]}"""
+        )
+        logger.debug(
+            f"""Path type changed in server:
+            {[d.a_path for d in diff_index.iter_change_type("T")]}"""
+        )
+        update_ref(repo, message=COMMIT_MESSAGE_PREPULL)
     git.checkout(active_branch)
     git.merge(SYNC_BRANCH)
 
@@ -505,7 +687,7 @@ def pull(
         https_cert_check,
         save_password,
     )
-    # Fail if the repo is clean
+    # Fail if the repo is not clean
     _pull(repo, client, project_id)
 
 
@@ -587,7 +769,7 @@ def clone(
         raise inst
     client.download_project(project_id, path=directory)
     # TODO(msimonin): add a decent default .gitignore ?
-    update_ref(repo, message="clone")
+    update_ref(repo, message=COMMIT_MESSAGE_CLONE)
 
 
 @cli.command(
@@ -616,27 +798,21 @@ def push(
 
     def _upload(client, project_data, path):
         # initial factorisation effort
+        path = Path(path)
         logger.debug(f"Uploading {path}")
         project_id = project_data["_id"]
-        dirname = os.path.dirname(path)
-        # TODO: that smells
-        dirname = "/" + dirname
-        # TODO encapsulate both ?
-        folder_id = client.check_or_create_folder(project_data, dirname)
-        p = f"{repo.working_dir}/{path}"
-        client.upload_file(project_id, folder_id, p)
+        folder_id = client.check_or_create_folder(project_data, path.parent)
+        p = Path(repo.working_dir).joinpath(path)
+        client.upload_file(project_id, folder_id, str(p))
 
     def _delete(client, project_data, path):
         # initial factorisation effort
+        path = Path(path)
         logger.debug(f"Deleting {path}")
         project_id = project_data["_id"]
-        dirname = os.path.dirname(path)
-        # TODO: that smells
-        dirname = "/" + dirname
-        basename = os.path.basename(path)
         entities = walk_project_data(
             project_data,
-            lambda x: x["folder_path"] == dirname and x["name"] == basename,
+            lambda x: Path(x["folder_path"]) == path.parent and x["name"] == path.name,
         )
         # there should be one
         entity = next(entities)
@@ -697,8 +873,8 @@ def push(
         # 2) creating the new one (b)
         _delete(client, project_data, d.a_path)
         _upload(client, project_data, d.b_path)
-
-    update_ref(repo, message="push")
+    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
+        update_ref(repo, message=COMMIT_MESSAGE_PUSH)
 
 
 @cli.command(

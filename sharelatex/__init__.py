@@ -73,7 +73,7 @@ def walk_project_data(project_data, predicate=lambda x: True):
         """
         for c in current:
             if c["name"] == "rootFolder":
-                folder_name = ""
+                folder_name = "."
             else:
                 folder_name = c["name"]
             folder_path = os.path.join(parent, folder_name)
@@ -81,7 +81,7 @@ def walk_project_data(project_data, predicate=lambda x: True):
             fd = {
                 "folder_id": folder_id,
                 "folder_path": folder_path,
-                "name": folder_name,
+                "name": ".",
                 "type": "folder",
             }
             if predicate(fd):
@@ -90,26 +90,20 @@ def walk_project_data(project_data, predicate=lambda x: True):
                 fd = {
                     "folder_id": folder_id,
                     "folder_path": folder_path,
-                    "name": folder_name,
                     "type": "file",
                 }
                 fd.update(f)
                 if predicate(fd):
                     yield fd
             for d in c["docs"]:
-                fd = {
-                    "folder_id": folder_id,
-                    "folder_path": folder_path,
-                    "name": folder_name,
-                    "type": "doc",
-                }
+                fd = {"folder_id": folder_id, "folder_path": folder_path, "type": "doc"}
                 fd.update(d)
                 if predicate(fd):
                     yield fd
             if len(c["folders"]) > 0:
                 yield from _walk_project_data(c["folders"], folder_path)
 
-    return _walk_project_data(project_data["rootFolder"], "/")
+    return _walk_project_data(project_data["rootFolder"], "")
 
 
 def lookup_folder(project_data, folder_path):
@@ -126,8 +120,9 @@ def lookup_folder(project_data, folder_path):
     Raises:
          StopIteration if the folder isn't found
     """
+    folder_path = Path(folder_path)
     folders = walk_project_data(
-        project_data, predicate=lambda x: x["folder_path"] == folder_path
+        project_data, predicate=lambda x: Path(x["folder_path"]) == folder_path
     )
     return next(folders)
 
@@ -589,6 +584,22 @@ class SyncClient:
     def _delete(self, url, *args, **kwargs):
         return self._request("DELETE", url, *args, **kwargs)
 
+    def get_project_update_data(self, project_id):
+        """Get update (history) data of a project.
+
+
+        Args:
+            project_id (str): The id of the project to download
+
+        Raises:
+            Exception if the project update data can't be downloaded.
+        """
+        url = f"{self.base_url}/project/{project_id}/updates"
+        logger.info(f"Downloading update data for {project_id}")
+        r = self._get(url, data=self.login_data)
+        r.raise_for_status()
+        return r.json()
+
     def download_project(self, project_id, *, path=".", keep_zip=False):
         """Download and unzip the project.
 
@@ -618,18 +629,21 @@ class SyncClient:
         if not keep_zip:
             target_path.unlink()
 
-    def get_doc(self, project_id, doc_id):
-        """Get a doc from a project .
+    def get_document(self, project_id, doc_id, dest_path=None):
+        """Get a document from a project .
 
-        This mimics the browser behaviour when opening the project editor. This
+        This mimics the browser behavior when opening the project editor. This
         will open a websocket connection to the server to get the informations.
 
         Args:
             project_id (str): The id of the project
             doc_id (str): The id of the doc
+            dest_path (str): the path to write the document, must be None if
+                output is a string with the contents of document
 
         Returns:
-            A string corresponding to the document.
+            A string corresponding to the document if dest_path is None
+            or True if dest_path is correctly written
         """
 
         url = f"{self.base_url}/project/{project_id}"
@@ -677,17 +691,27 @@ class SyncClient:
             socketIO.on("connectionRejected", on_connection_rejected)
             socketIO.wait(seconds=3)
         # NOTE(msimonin): Check return type
-        return "\n".join(storage.doc_data)
+        if dest_path is None:
+            return "\n".join(storage.doc_data)
+        else:
+            dest_path = Path(dest_path)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest_path, "w") as f:
+                f.write("\n".join(storage.doc_data))
+            return True
 
-    def get_file(self, project_id, file_id):
+    def get_file(self, project_id, file_id, dest_path=None):
         """Get an individual file (e.g image).
 
         Args:
             project_id (str): The project id of the project where the file is
             file_id (str): The file id
+            dest_path (str): the path to write the document, must be None if
+                output is a string with the contents of document
 
         Returns:
-            requests response
+            A string corresponding to the file if dest_path is None
+            or True if dest_path is correctly written
 
         Raises:
             Exception if the file can't be downloaded
@@ -696,30 +720,14 @@ class SyncClient:
         r = self._get(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
         # TODO(msimonin): return type
-        return r
-
-    def get_document(self, project_id, doc_id):
-        """Get a single document (e.g tex file).
-
-        Note: This method requires a patch server side to expose the
-        corresponding endpoint. So one shouldn't use this in general
-
-        Args:
-            project_id (str): The project id of the project where the document
-                is
-            doc_id (str): The document id
-
-        Returns:
-            requests response
-
-        Raises:
-            Exception if the file can't be downloaded
-        """
-        url = f"{self.base_url}/project/{project_id}/document/{doc_id}"
-        r = self._get(url, data=self.login_data, verify=self.verify)
-
-        # TODO(msimonin): return type
-        return r
+        if dest_path is None:
+            return r.content
+        else:
+            dest_path = Path(dest_path)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest_path, "bw") as f:
+                f.write(r.content)
+            return True
 
     def delete_file(self, project_id, file_id):
         """Delete a single file (e.g image).
@@ -751,9 +759,29 @@ class SyncClient:
             requests response
 
         Raises:
-            Exception if the file can't be deleted
+            Exception if the document can't be deleted
         """
         url = f"{self.base_url}/project/{project_id}/doc/{doc_id}"
+        r = self._delete(url, data=self.login_data, verify=self.verify)
+        r.raise_for_status()
+        # TODO(msimonin): return type
+
+        return r
+
+    def delete_folder(self, project_id, folder_id):
+        """Delete a single folder (with all data inside).
+
+        Args:
+            project_id (str): The project id of the project where the folder is
+            folder_id (str): The folder id
+
+        Returns:
+            requests response
+
+        Raises:
+            Exception if the folder can't be deleted
+        """
+        url = f"{self.base_url}/project/{project_id}/folder/{folder_id}"
         r = self._delete(url, data=self.login_data, verify=self.verify)
         r.raise_for_status()
         # TODO(msimonin): return type
@@ -775,17 +803,17 @@ class SyncClient:
             Exception if the file can't be uploaded
         """
         url = f"{self.base_url}/project/{project_id}/upload"
-        filename = os.path.basename(path)
+        path = Path(path)
         # TODO(msimonin): handle correctly the content-type
-        mime = filetype.guess(path)
+        mime = filetype.guess(str(path))
         if not mime:
             mime = "text/plain"
-        files = {"qqfile": (filename, open(path, "rb"), mime)}
+        files = {"qqfile": (path.name, open(path, "rb"), mime)}
         params = {
             "folder_id": folder_id,
             "_csrf": self.login_data["_csrf"],
             "qquid": str(uuid.uuid4()),
-            "qqfilename": filename,
+            "qqfilename": path.name,
             "qqtotalfilesize": os.path.getsize(path),
         }
         r = self._post(url, params=params, files=files, verify=self.verify)
@@ -837,6 +865,7 @@ class SyncClient:
         Returns:
             The folder id of the deepest folder created.
         """
+        folder_path = Path(folder_path)
         try:
             folder = lookup_folder(metadata, folder_path)
             return folder["folder_id"]

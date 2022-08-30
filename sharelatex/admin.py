@@ -97,8 +97,9 @@ def getZipProject(project_uid, destination_path, user_file_path):
 
 
 def _get_projects_before_after(days: int, selector="$lt"):
-    """return a dict containing in keys the ids of the inactive projects since the number
-    of day passed in parameter, and in value their lastUpdated date"""
+    """return a dict containing in keys the ids of the inactive projects
+    since the number of day passed in parameter,
+    and in value their lastUpdated date"""
 
     ids_and_lastUpadted = {}
     projects = DB["projects"]
