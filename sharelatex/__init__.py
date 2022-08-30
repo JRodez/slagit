@@ -12,6 +12,10 @@ import urllib.parse
 import uuid
 import zipfile
 
+from appdirs import user_data_dir
+import pickle
+import time
+
 import filetype
 from socketIO_client import SocketIO, BaseNamespace
 
@@ -477,12 +481,39 @@ class SyncClient:
 
         # set the session to use for authentication
         authenticator.session = self.client
-        self.login_data, self.cookie = authenticator.authenticate(
-            base_url=self.base_url,
-            username=username,
-            password=password,
-            verify=self.verify,
-        )
+
+        expire_time = 1000  # seconds
+        update_need = False
+
+        cache_dir = Path(user_data_dir("python-sharelatex"))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        datafile = cache_dir / Path("session_cache")
+        if datafile.is_file():
+            with open(datafile, "rb") as f:
+                data = pickle.load(f)
+        else:
+            data = {}
+        k = base_url + "_" + username
+        if k in data:
+            session_data, data_time = data[k]
+            current_time = time.time()
+            if current_time - data_time < expire_time:
+                self.login_data, self.cookie = session_data
+            else:
+                update_need = True
+        else:
+            update_need = True
+        if update_need:
+            self.login_data, self.cookie = authenticator.authenticate(
+                base_url=self.base_url,
+                username=username,
+                password=password,
+                verify=self.verify,
+            )
+            data_time = time.time()
+            data[k] = ((self.login_data, self.cookie), data_time)
+            with open(datafile, "wb") as f:
+                pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
 
     def get_project_data(self, project_id):
         """Get the project hierarchy and some metadata.
@@ -535,13 +566,16 @@ class SyncClient:
             socketIO.on("connectionRejected", on_connection_rejected)
             socketIO.wait(seconds=3)
         # NOTE(msimonin): Check return type
-        # thuis must be a valid dict (eg not None)
+        # this must be a valid dict (eg not None)
         return storage.project_data
 
     def _request(self, verb, url, *args, **kwargs):
         headers = kwargs.get("headers", {})
         headers.update(self.headers)
         kwargs["headers"] = headers
+        cookies = kwargs.get("cookies", {})
+        cookies.update(self.cookie)
+        kwargs["cookies"] = cookies
         r = self.client.request(verb, url, *args, **kwargs)
         r.raise_for_status()
         return r
@@ -568,7 +602,7 @@ class SyncClient:
             Exception if the project can't be downloaded/unzipped.
         """
         url = f"{self.base_url}/project/{project_id}/download/zip"
-        r = self._get(url, stream=True)
+        r = self._get(url, data=self.login_data, stream=True)
         logger.info(f"Downloading {project_id} in {path}")
         target_dir = Path(path)
         target_path = Path(target_dir, f"{project_id}.zip")
