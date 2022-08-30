@@ -32,23 +32,20 @@ Installation
 Compatibility notes
 -------------------
 
-The tool is targetting the community edition of ShareLatex/Overleaf.
-More specifically one specific version of the tool is targetting one specific
-version of ShareLatex/Overleaf CE version. Roughly we have the following mapping:
+The tool is targetting the community edition of ShareLatex/Overleaf and we are
+testing it on:
+
+- https://sharelatex.irisa.fr -- ``legacy`` authentication method 
+- https://overleaf.irisa.fr -- ``igrida`` authentication method
+- Overleaf CE (3.0.1) --  ``community`` authentication method
 
 
-.. list-table:: compatibility
-   :widths: 25 25
-   :header-rows: 1
+Persistent sessions
+-------------------
 
-   * - python-sharelatex
-     - sharelatex/overleaf
-   * - 0.Y.Z
-     - 1.2.1
-   * - 1.Y.Z
-     - 2.3.1
-   * - 2.Y.Z
-     - 3.0.1
+Sessions are persistent and store in the application directory (exact might
+differ on the OS used). Is uses `appdirs
+<https://github.com/ActiveState/appdirs>`_ internally.
 
 Note on passwords management
 ----------------------------

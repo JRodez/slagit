@@ -1,6 +1,19 @@
 Changelog
 ===========
 
+
+3.0.0
+-----
+
+- Added support for https://overleaf.irisa.fr
+- Introduce authentication methods
+    - https://sharelatex.irisa.fr -- `legacy` authentication method 
+    - https://overleaf.irisa.fr -- `igrida` authentication method
+    - Overleaf CE (3.0.1) --  `community` authentication method
+- Optimize pull/push operation by requesting only file that needs to be updated
+  (based on time comparison)
+- Use persitent sessions by default (avoid to log in for every single requests)
+
 0.5.2
 -----
 
