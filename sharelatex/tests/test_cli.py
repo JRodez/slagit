@@ -323,6 +323,28 @@ class TestCli(unittest.TestCase):
 
         _test_clone_and_pull_remote_folder_deletion(path="./test_dir")
 
+
+    @new_project(branch="main")
+    def test_clone_and_pull_addgitignore(self, project=None):
+        path = Path(project.fs_path)
+
+        gitignore = path / ".gitignore"
+        pdf = path / "main.pdf"
+        # ignoring pdf files
+        check_call(f"echo '*.pdf'> {gitignore}", shell=True)
+        # create a dummy pdf file
+        check_call(f"echo 'this is an ignored pdf'> {pdf}", shell=True)
+
+        # committing (only .gitingore)
+        project.repo.git.add(".gitignore")
+        project.repo.index.commit("test")
+
+        # we're clean, pulling
+        check_call("git slatex pull -vvv", shell=True)
+        self.assertTrue(gitignore.exists(), "gitignore was committed and mustn't be deleted")
+        self.assertTrue(pdf.exists(), "gitignored file mustn't be deleted")
+
+
     def test_clone_malformed_project_URL(self):
         """try clone with malformed project URL"""
         with self.assertRaises(Exception) as _:
