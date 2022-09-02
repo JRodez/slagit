@@ -114,7 +114,7 @@ py38-functionnal:
 py39-functionnal:
   <<: *base-functionnal
   stage: test
-  image: python:3.8
+  image: python:3.9
   variables:
     TOXENV: py39
   allow_failure: true
