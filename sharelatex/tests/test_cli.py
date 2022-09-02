@@ -2,13 +2,14 @@ from contextlib import contextmanager
 from git import Repo
 import logging
 import os
-from subprocess import check_call, check_output
+from subprocess import check_call, check_output, CalledProcessError, STDOUT
 import tempfile
 import unittest
 import shlex
 from pathlib import Path
 
 from sharelatex import SyncClient, walk_project_data, get_authenticator_class
+from sharelatex.cli import MESSAGE_REPO_ISNT_CLEAN
 
 from ddt import ddt, data, unpack
 
@@ -343,6 +344,38 @@ class TestCli(unittest.TestCase):
         check_call("git slatex pull -vvv", shell=True)
         self.assertTrue(gitignore.exists(), "gitignore was committed and mustn't be deleted")
         self.assertTrue(pdf.exists(), "gitignored file mustn't be deleted")
+
+
+    @new_project(branch="main")
+    def test_local_repo_must_be_clean(self, project=None):
+        path = Path(project.fs_path)
+
+        untracked = path / "untracked"
+        check_call(f"echo 'this is untracked file'> {untracked}", shell=True)
+
+        with self.assertRaises(CalledProcessError) as cm:
+            check_output("git slatex pull -vvv", shell=True, stderr=STDOUT)
+        exception = cm.exception
+        self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
+
+        with self.assertRaises(CalledProcessError) as cm:
+            check_output("git slatex push -vvv", shell=True, stderr=STDOUT)
+        exception = cm.exception
+        self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
+
+
+        username = project.username
+        password = project.password
+        with self.assertRaises(CalledProcessError) as cm:
+            check_output(
+                f"git slatex new test_new {BASE_URL} --username {username} --password {shlex.quote(password)} --auth_type {AUTH_TYPE}",
+                shell=True,
+                stderr=STDOUT
+            )
+        exception = cm.exception
+        self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
+
+
 
 
     def test_clone_malformed_project_URL(self):

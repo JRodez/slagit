@@ -55,6 +55,8 @@ COMMIT_MESSAGES = [
     COMMIT_MESSAGE_UPLOAD,
 ]
 
+MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean."
+
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
 PROMPT_AUTH_TYPE = "Authentification type (*gitlab*|community|legacy): "
@@ -156,7 +158,7 @@ def get_clean_repo(path=None):
     # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         logger.error(repo.git.status())
-        raise Exception("The repo isn't clean.")
+        raise Exception(MESSAGE_REPO_ISNT_CLEAN)
     return repo
 
 
@@ -499,11 +501,6 @@ def _sync_remote_docs(
 
 
 def _pull(repo, client, project_id):
-    if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
-        logger.error(repo.git.status())
-        print("The repository isn't clean: please add and commit or stash your files")
-        return
-
     # attempt to "merge" the remote and the local working copy
 
     git = repo.git
@@ -680,7 +677,9 @@ def pull(
     verbose,
 ):
     set_log_level(verbose)
-    repo = Repo()
+
+    # Fail if the repo is not clean
+    repo = get_clean_repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
@@ -694,7 +693,6 @@ def pull(
         https_cert_check,
         save_password,
     )
-    # Fail if the repo is not clean
     _pull(repo, client, project_id)
 
 
