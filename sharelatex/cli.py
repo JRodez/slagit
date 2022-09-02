@@ -1,8 +1,9 @@
 import getpass
 import logging
 import os
-import tempfile
 from pathlib import Path
+import tempfile
+from typing import Any, Dict, List, Union
 from zipfile import ZipFile
 import datetime
 
@@ -10,7 +11,7 @@ import dateutil.parser
 
 import click
 import keyring
-from git import Repo
+from git import Repo, Blob, Tree
 from git.config import cp
 
 from sharelatex import (
@@ -385,18 +386,19 @@ def test(verbose):
     print("print")
 
 
-def _sync_deleted_items(working_path, remote_items, files):
+def _sync_deleted_items(
+    working_path: Path, remote_items: Dict[Any, Any], objetcs: List[Union[Blob, Tree]]
+):
     remote_path = [Path(fd["folder_path"]).joinpath(fd["name"]) for fd in remote_items]
-    logger.debug("delete only files not in remote sharelatex nor in .git")
-    for p in files:
-        p_relative = p.relative_to(working_path)
-        if not str(p_relative).startswith(".git"):
-            if p_relative not in remote_path:
-                logger.debug(f"delete {p}")
-                if p.is_dir():
-                    p.rmdir()
-                else:
-                    Path.unlink(p)
+    for blob_path in objetcs:
+        p_relative = blob_path.relative_to(working_path)
+        # check the path and all of its parents dir
+        if p_relative not in remote_path:
+            logger.debug(f"delete {blob_path}")
+            if blob_path.is_dir():
+                blob_path.rmdir()
+            else:
+                Path.unlink(blob_path)
 
 
 def _get_datetime_from_git(repo, branch, files, working_path):
@@ -519,17 +521,22 @@ def _pull(repo, client, project_id):
     )
     # mode détaché
     git.checkout(commit)
+
     try:
         # etat du serveur actuel
         data = client.get_project_data(project_id)
         remote_items = [item for item in walk_project_data(data)]
         # état (supposé) du serveur la dernière fois qu'on s'est synchronisé
-        files = list(working_path.rglob("*"))
-        files.reverse()
+        # on ne prend en compte que les fichier trackés par git
+        # https://gitpython.readthedocs.io/en/stable/tutorial.html#the-tree-object
+        objects = [Path(b.abspath) for b in repo.head.commit.tree.traverse()]
+        objects.reverse()
 
-        datetimes_dict = _get_datetime_from_git(repo, SYNC_BRANCH, files, working_path)
+        datetimes_dict = _get_datetime_from_git(
+            repo, SYNC_BRANCH, objects, working_path
+        )
 
-        _sync_deleted_items(working_path, remote_items, files)
+        _sync_deleted_items(working_path, remote_items, objects)
 
         _sync_remote_files(
             client, project_id, working_path, remote_items, datetimes_dict
