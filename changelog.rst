@@ -11,7 +11,7 @@ Changelog
     - https://overleaf.irisa.fr -- `igrida` authentication method
     - Overleaf CE (3.0.1) --  `community` authentication method
 - Optimize pull/push operation by requesting only file that needs to be updated
-  (based on time comparison)
+  (based on time comparisons between your local machine and the remote server)
 - Use persitent sessions by default (avoid to log in for every single requests)
 
 0.5.2
