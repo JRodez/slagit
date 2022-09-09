@@ -296,7 +296,7 @@ def getClient(
             )
         except Exception as inst:
             client = None
-            logger.warning("{}  : attempt # {} ".format(inst, i + 1))
+            logger.warning(f"{inst}  : attempt # {i + 1} ")
             auth_type, username, password = refresh_account_information(
                 repo,
                 auth_type,
@@ -937,7 +937,7 @@ def new(
 
         response = client.upload(archive_name)
         logger.info(
-            "Successfully uploaded %s [%s]" % (projectname, response["project_id"])
+            "Successfully uploaded {} [{}]".format(projectname, response["project_id"])
         )
 
         refresh_project_information(

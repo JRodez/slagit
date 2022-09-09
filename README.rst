@@ -35,7 +35,7 @@ Compatibility notes
 The tool is targetting the community edition of ShareLatex/Overleaf and we are
 testing it on:
 
-- https://sharelatex.irisa.fr -- ``legacy`` authentication method 
+- https://sharelatex.irisa.fr -- ``legacy`` authentication method
 - https://overleaf.irisa.fr -- ``gitlab`` authentication method
 - Overleaf CE (3.0.1) --  ``community`` authentication method
 

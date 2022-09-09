@@ -205,7 +205,7 @@ def get_csrf_Token(html_text):
         return None
 
 
-class Authenticator(object):
+class Authenticator:
     def __init__(self, session: Optional[requests.session] = None):
         self._session: requests.session = session
 

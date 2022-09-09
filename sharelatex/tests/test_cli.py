@@ -7,6 +7,7 @@ import tempfile
 import unittest
 import shlex
 from pathlib import Path
+import queue
 
 from sharelatex import SyncClient, walk_project_data, get_authenticator_class
 from sharelatex.cli import MESSAGE_REPO_ISNT_CLEAN
@@ -23,11 +24,10 @@ PASSWORDS = os.environ.get("CI_PASSWORDS")
 AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
 
 # Operate with a list of users
-# This workarounds the rate limitation on the API if enough usernames and passwords are given
-# Each test will pick the next (username, password) in the queue and put it back at the end
-# An alternative would be to define a smoke user in the settings
-# settings.smokeTest = True, settings.smokeTest.UserId
-import queue
+# This workarounds the rate limitation on the API if enough usernames and
+# passwords are given Each test will pick the next (username, password) in the
+# queue and put it back at the end An alternative would be to define a smoke
+# user in the settings settings.smokeTest = True, settings.smokeTest.UserId
 
 CREDS = queue.Queue()
 for username, password in zip(USERNAMES.split(","), PASSWORDS.split(",")):
@@ -37,7 +37,7 @@ for username, password in zip(USERNAMES.split(","), PASSWORDS.split(",")):
 def log(f):
     def wrapped(*args, **kwargs):
         print("-" * 60)
-        print("{:^60}".format(f.__name__.upper()))
+        print(f"{f.__name__.upper():^60}")
         print("-" * 60)
         return f(*args, **kwargs)
 
@@ -126,7 +126,12 @@ def project(project_name, branch=None):
             project = Project(client, project_id, fs_path, username, password)
 
             # let's clone it
-            args = f"--auth_type={AUTH_TYPE} --username={username} --password={shlex.quote(password)} --save-password --no-https-cert-check"
+            args = (
+                f"--auth_type={AUTH_TYPE} "
+                f"--username={username} "
+                f"--password={shlex.quote(password)} "
+                f"--save-password --no-https-cert-check"
+            )
             check_call(f"git slatex clone {project.url} {args}", shell=True)
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
@@ -246,7 +251,7 @@ class TestCli(unittest.TestCase):
             # check the document
             self.assertTrue(os.path.exists("test/test.tex"))
             # check content (there's an extra \n...)
-            self.assertEqual("test\n", open("test/test.tex", "r").read())
+            self.assertEqual("test\n", open("test/test.tex").read())
 
             # check the file
             self.assertTrue(os.path.exists("test_bin/test.jpg"))
@@ -324,16 +329,15 @@ class TestCli(unittest.TestCase):
 
         _test_clone_and_pull_remote_folder_deletion(path="./test_dir")
 
-
     @new_project(branch="main")
     def test_clone_and_pull_addgitignore(self, project=None):
         path = Path(project.fs_path)
 
         gitignore = path / ".gitignore"
         pdf = path / "main.pdf"
-        # ignoring pdf files
+        # ignoring pdf files
         check_call(f"echo '*.pdf'> {gitignore}", shell=True)
-        # create a dummy pdf file
+        # create a dummy pdf file
         check_call(f"echo 'this is an ignored pdf'> {pdf}", shell=True)
 
         # committing (only .gitingore)
@@ -342,9 +346,10 @@ class TestCli(unittest.TestCase):
 
         # we're clean, pulling
         check_call("git slatex pull -vvv", shell=True)
-        self.assertTrue(gitignore.exists(), "gitignore was committed and mustn't be deleted")
+        self.assertTrue(
+            gitignore.exists(), "gitignore was committed and mustn't be deleted"
+        )
         self.assertTrue(pdf.exists(), "gitignored file mustn't be deleted")
-
 
     @new_project(branch="main")
     def test_local_repo_must_be_clean(self, project=None):
@@ -363,20 +368,19 @@ class TestCli(unittest.TestCase):
         exception = cm.exception
         self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
 
-
         username = project.username
         password = project.password
         with self.assertRaises(CalledProcessError) as cm:
             check_output(
-                f"git slatex new test_new {BASE_URL} --username {username} --password {shlex.quote(password)} --auth_type {AUTH_TYPE}",
+                f"git slatex new test_new {BASE_URL} "
+                f"--username {username} "
+                f"--password {shlex.quote(password)} "
+                f"--auth_type {AUTH_TYPE}",
                 shell=True,
-                stderr=STDOUT
+                stderr=STDOUT,
             )
         exception = cm.exception
         self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
-
-
-
 
     def test_clone_malformed_project_URL(self):
         """try clone with malformed project URL"""
@@ -388,7 +392,10 @@ class TestCli(unittest.TestCase):
         username = project.username
         password = project.password
         check_call(
-            f"git slatex new test_new {BASE_URL} --username {username} --password {shlex.quote(password)} --auth_type {AUTH_TYPE}",
+            f"git slatex new test_new {BASE_URL} "
+            f"--username {username} "
+            f"--password {shlex.quote(password)} "
+            f"--auth_type {AUTH_TYPE}",
             shell=True,
         )
 
@@ -403,7 +410,7 @@ class TestLib(unittest.TestCase):
     @new_project()
     def test_update_project_settings(self, project=None):
         client = project.client
-        response = client.update_project_settings(project.project_id, name="RENAMED")
+        _ = client.update_project_settings(project.project_id, name="RENAMED")
         project_data = client.get_project_data(project.project_id)
         self.assertEqual("RENAMED", project_data["name"])
 

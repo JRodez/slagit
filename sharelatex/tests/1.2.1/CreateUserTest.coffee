@@ -29,5 +29,3 @@ module.exports = (grunt) ->
 						Successfully created and validated #{email} as an regular user.
 					"""
 					done()
-
-

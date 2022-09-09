@@ -1,12 +1,11 @@
 import inspect
 import time
 import os
-import logging
 
 
 # inspired from https://github.com/gtato/sharelatex-loadgenerator
 from sharelatex import IrisaAuthenticator, SyncClient
-from locust import TaskSet, events, User, task
+from locust import events, User, task
 
 
 BASE_URL = os.environ.get("CI_BASE_URL")
@@ -20,7 +19,7 @@ class LocustClient(SyncClient):
         authenticator = IrisaAuthenticator(
             base_url=BASE_URL, username=USERNAME, password=PASSWORD, verify=False
         )
-        super(LocustClient, self).__init__(
+        super().__init__(
             base_url=BASE_URL,
             username=USERNAME,
             password=PASSWORD,
@@ -29,16 +28,19 @@ class LocustClient(SyncClient):
         )
 
     def __getattribute__(self, name):
-        """From https://docs.locust.io/en/stable/testing-other-systems.html#sample-xml-rpc-locust-client
+        """Override client methods
 
-        The idea is to reuse an existing client (here python-sharelatex) and use it in locust
-        The only thing we should pay attention at is to send right statistics to locust.
-        So the effect of this method is to make sure to fire the event before and after to
-        funtion calls of the sharelatex client
-        More specificaly it decorates at run time the functions of the client class.
-        !from python with love!
+        From
+        https://docs.locust.io/en/stable/testing-other-systems.html#sample-xml-rpc-locust-client
+
+        The idea is to reuse an existing client (here python-sharelatex) and use
+        it in locust The only thing we should pay attention at is to send right
+        statistics to locust.  So the effect of this method is to make sure to
+        fire the event before and after to funtion calls of the sharelatex
+        client More specificaly it decorates at run time the functions of the
+        client class.  !from python with love!
         """
-        attr = super(LocustClient, self).__getattribute__(name)
+        attr = super().__getattribute__(name)
         if inspect.ismethod(attr):
 
             def wrapper(*args, **kwargs):

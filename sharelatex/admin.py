@@ -56,7 +56,7 @@ def _writeProjectFiles(
                 destination = os.path.join(newPath, file_ref["name"])
                 try:
                     shutil.copyfile(source, destination)
-                except IOError:
+                except OSError:
                     print(
                         "file {file} : {source} not found ".format(
                             file=file_ref["name"], source=source

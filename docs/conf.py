@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # sharelatex documentation build configuration file, created by
 # sphinx-quickstart on Thu Sep 21 21:45:39 2017.
@@ -19,13 +18,14 @@
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-import sphinx_rtd_theme
 
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #
 # needs_sphinx = '1.0'
+
+import pkg_resources
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -55,7 +55,6 @@ author = "Matthieu Simonin, Guillermo Andrade"
 # built documents.
 #
 # The short X.Y version.
-import pkg_resources
 
 version = pkg_resources.require(project)[0].version
 # The full version, including alpha/beta/rc tags.
