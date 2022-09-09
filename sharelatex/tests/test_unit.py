@@ -6,7 +6,6 @@ import os
 import tempfile
 
 
-from sharelatex import SyncClient
 from sharelatex.cli import _sync_deleted_items, _sync_remote_files
 
 
