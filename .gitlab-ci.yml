@@ -16,7 +16,7 @@ prechecks:
   stage: precheck
   script:
   - pip install pre-commit
-  - pre-commit run
+  - pre-commit run --all-files
 
 pep8:
   tags: [ci.inria.fr, small]
