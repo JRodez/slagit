@@ -469,6 +469,7 @@ class SyncClient:
 
         # build the client and login
         self.client = requests.session()
+        self.client.verify = verify
         if authenticator is None:
             # build a default authenticator based on the
             # given credentials
