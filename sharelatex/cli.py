@@ -943,4 +943,4 @@ def new(
         refresh_project_information(
             repo, base_url, response["project_id"], https_cert_check
         )
-        update_ref(repo, message="upload")
+        update_ref(repo, message=COMMIT_MESSAGE_UPLOAD)
