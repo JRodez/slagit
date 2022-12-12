@@ -597,7 +597,7 @@ class SyncClient:
         """
         url = f"{self.base_url}/project/{project_id}/updates"
         logger.info(f"Downloading update data for {project_id}")
-        r = self._get(url, data=self.login_data)
+        r = self._get(url)
         r.raise_for_status()
         return r.json()
 
@@ -614,7 +614,7 @@ class SyncClient:
             Exception if the project can't be downloaded/unzipped.
         """
         url = f"{self.base_url}/project/{project_id}/download/zip"
-        r = self._get(url, data=self.login_data, stream=True)
+        r = self._get(url, stream=True)
         logger.info(f"Downloading {project_id} in {path}")
         target_dir = Path(path)
         target_path = Path(target_dir, f"{project_id}.zip")
@@ -718,7 +718,7 @@ class SyncClient:
             Exception if the file can't be downloaded
         """
         url = f"{self.base_url}/project/{project_id}/file/{file_id}"
-        r = self._get(url, data=self.login_data, verify=self.verify)
+        r = self._get(url, verify=self.verify)
         r.raise_for_status()
         # TODO(msimonin): return type
         if dest_path is None:
