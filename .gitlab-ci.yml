@@ -24,6 +24,12 @@ pep8:
   script:
   - tox -e pep8
 
+docs:
+  tags: [ci.inria.fr, small]
+  stage: test
+  script:
+  - tox -e docs
+
 py39-functionnal-1.2.1:
     tags: [ci.inria.fr, large]
     stage: test
