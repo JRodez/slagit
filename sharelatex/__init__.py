@@ -525,6 +525,7 @@ class SyncClient:
 
         # use thread local storage to pass the project data
         storage = threading.local()
+        storage.is_data = False
 
         class Namespace(BaseNamespace):
             def on_connect(self):
@@ -538,6 +539,7 @@ class SyncClient:
 
         def on_joint_project(*args):
             storage.project_data = args[1]
+            storage.is_data = True
 
         def on_connection_rejected(*args):
             logger.debug("[connectionRejected]  oh !!!")
@@ -560,7 +562,10 @@ class SyncClient:
 
             socketIO.on("connectionAccepted", on_connection_accepted)
             socketIO.on("connectionRejected", on_connection_rejected)
-            socketIO.wait(seconds=3)
+            while not storage.is_data:
+                logger.debug("[socketIO] wait for project data")
+                socketIO.wait(0.1)
+            logger.debug("[socketIO] wait for project data finish !")
         # NOTE(msimonin): Check return type
         # this must be a valid dict (eg not None)
         return storage.project_data
@@ -651,6 +656,7 @@ class SyncClient:
 
         # use thread local storage to pass the project data
         storage = threading.local()
+        storage.is_data =False
 
         class Namespace(BaseNamespace):
             def on_connect(self):
@@ -677,6 +683,7 @@ class SyncClient:
 
             def on_joint_doc(*args):
                 storage.doc_data = args[1]
+                storage.is_data =True
 
             def on_joint_project(*args):
                 storage.project_data = args[1]
@@ -690,7 +697,10 @@ class SyncClient:
 
             socketIO.on("connectionAccepted", on_connection_accepted)
             socketIO.on("connectionRejected", on_connection_rejected)
-            socketIO.wait(seconds=3)
+            while not storage.is_data :
+                logger.debug("[socketIO] wait for doc data")
+                socketIO.wait(0.1)
+            logger.debug("[socketIO] wait for doc data finish !")
         # NOTE(msimonin): Check return type
         if dest_path is None:
             return "\n".join(storage.doc_data)
