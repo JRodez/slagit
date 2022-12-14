@@ -452,7 +452,8 @@ def _sync_remote_files(client, project_id, working_path, remote_items, datetimes
         if need_to_download:
             logger.info(f"download from server file to update {local_path}")
             client.get_file(project_id, remote_file["_id"], dest_path=local_path)
-            # TODO: set local time for downloaded file to remote_time
+            # set local time for downloaded file to remote_time
+            os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
 def _sync_remote_docs(
@@ -497,7 +498,8 @@ def _sync_remote_docs(
         if need_to_download:
             logger.info(f"download from server file to update {local_path}")
             client.get_document(project_id, doc_id, dest_path=local_path)
-        # TODO: set local time for downloaded document to remote_time
+            # Set local time for downloaded document to remote_time
+            os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
 def _pull(repo, client, project_id):
@@ -529,22 +531,25 @@ def _pull(repo, client, project_id):
         objects = [Path(b.abspath) for b in repo.head.commit.tree.traverse()]
         objects.reverse()
 
-        datetimes_dict = _get_datetime_from_git(
-            repo, SYNC_BRANCH, objects, working_path
-        )
+        # datetimes_dict = _get_datetime_from_git(
+        #     repo, SYNC_BRANCH, objects, working_path
+        # )
 
         _sync_deleted_items(working_path, remote_items, objects)
 
         _sync_remote_files(
-            client, project_id, working_path, remote_items, datetimes_dict
+            client, project_id, working_path, remote_items, datetimes_dict={}
         )
 
         update_data = client.get_project_update_data(project_id)
-        # TODO: change de file time stat for the corresponding time in server
         _sync_remote_docs(
-            client, project_id, working_path, remote_items, update_data, datetimes_dict
+            client,
+            project_id,
+            working_path,
+            remote_items,
+            update_data,
+            datetimes_dict={},
         )
-
         # TODO reset en cas d'erreur ?
         # on se place sur la branche de synchro
         git.checkout(SYNC_BRANCH)
