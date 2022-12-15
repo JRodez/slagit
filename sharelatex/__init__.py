@@ -682,7 +682,11 @@ class SyncClient:
         ) as socketIO:
 
             def on_joint_doc(*args):
-                storage.doc_data = args[1]
+                # transform list of str (lines) as bytes for finally decode as
+                # utf-8 list of str
+                storage.doc_data = [
+                    bytes(ord(c) for c in line).decode("utf-8") for line in args[1]
+                ]
                 storage.is_data = True
 
             def on_joint_project(*args):
