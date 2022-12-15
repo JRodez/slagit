@@ -531,14 +531,14 @@ def _pull(repo, client, project_id):
         objects = [Path(b.abspath) for b in repo.head.commit.tree.traverse()]
         objects.reverse()
 
-        # datetimes_dict = _get_datetime_from_git(
-        #     repo, SYNC_BRANCH, objects, working_path
-        # )
+        datetimes_dict = _get_datetime_from_git(
+            repo, SYNC_BRANCH, objects, working_path
+        )
 
         _sync_deleted_items(working_path, remote_items, objects)
 
         _sync_remote_files(
-            client, project_id, working_path, remote_items, datetimes_dict={}
+            client, project_id, working_path, remote_items, datetimes_dict
         )
 
         update_data = client.get_project_update_data(project_id)
@@ -548,7 +548,7 @@ def _pull(repo, client, project_id):
             working_path,
             remote_items,
             update_data,
-            datetimes_dict={},
+            datetimes_dict,
         )
         # TODO reset en cas d'erreur ?
         # on se place sur la branche de synchro
