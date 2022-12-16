@@ -449,7 +449,7 @@ def _sync_remote_files(client, project_id, working_path, remote_items, datetimes
                 need_to_download = True
         else:
             need_to_download = True
-            remote_time = dateutil.parser.parse(remote_file["created"])
+            remote_time = datetime.datetime.now(datetime.timezone.utc)
         if need_to_download:
             logger.info(f"download from server file to update {local_path}")
             client.get_file(project_id, remote_file["_id"], dest_path=local_path)
