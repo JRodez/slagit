@@ -454,7 +454,8 @@ def _sync_remote_files(client, project_id, working_path, remote_items, datetimes
             logger.info(f"download from server file to update {local_path}")
             client.get_file(project_id, remote_file["_id"], dest_path=local_path)
             # set local time for downloaded file to remote_time
-            os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
+            if local_path.is_file():
+                os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
 def _sync_remote_docs(
@@ -501,7 +502,8 @@ def _sync_remote_docs(
             logger.info(f"download from server file to update {local_path}")
             client.get_document(project_id, doc_id, dest_path=local_path)
             # Set local time for downloaded document to remote_time
-            os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
+            if local_path.is_file():
+                os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
 def _pull(repo, client, project_id):
