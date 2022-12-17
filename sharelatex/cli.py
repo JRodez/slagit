@@ -853,7 +853,9 @@ def push(
 
     if not force:
         _pull(repo, client, project_id)
-
+    config = Config(repo)
+    # prevent git returning quoted path in diff when file path has unicode char
+    config.set_value("core", "quotepath", "off")
     master_commit = repo.commit("HEAD")
     sync_commit = repo.commit(SYNC_BRANCH)
     diff_index = sync_commit.diff(master_commit)
