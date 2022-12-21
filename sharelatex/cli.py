@@ -19,6 +19,7 @@ from sharelatex import (
     get_authenticator_class,
     set_logger,
     walk_project_data,
+    walk_folders,
 )
 
 logger = logging.getLogger(__name__)
@@ -730,6 +731,12 @@ It works as follow:
     default=True,
     help="""force to check https certificate or not""",
 )
+@click.option(
+    "--whole-project-download/--no-whole-project-download",
+    default=True,
+    help="""download whole project in a zip file from the server/ or download
+ sequentially file by file from the server""",
+)
 @authentication_options
 @log_options
 def clone(
@@ -741,6 +748,7 @@ def clone(
     save_password,
     ignore_saved_user_info,
     https_cert_check,
+    whole_project_download,
     verbose,
 ):
     set_log_level(verbose)
@@ -781,43 +789,30 @@ def clone(
 
         shutil.rmtree(directory)
         raise inst
-    client.download_project(project_id, path=directory)
+    if whole_project_download:
+        client.download_project(project_id, path=directory)
+        update_ref(repo, message=COMMIT_MESSAGE_CLONE)
+    else:
+        update_ref(repo, message=COMMIT_MESSAGE_CLONE)
+        _pull(repo, client, project_id)
     # TODO(msimonin): add a decent default .gitignore ?
-    update_ref(repo, message=COMMIT_MESSAGE_CLONE)
 
 
-@cli.command(
-    help="""Synchronize the local copy with the remote version.
+def _upload(repo, client, project_data, path):
+    # initial factorisation effort
+    path = Path(path)
+    logger.debug(f"Uploading {path}")
+    project_id = project_data["_id"]
+    folder_id = client.check_or_create_folder(project_data, path.parent)
+    p = Path(repo.working_dir).joinpath(path)
+    client.upload_file(project_id, folder_id, str(p))
+    return folder_id
 
-This works as follow:
 
-1. The remote version is pulled (see the :program:`pull` command)\n
-2. After the merge succeed, the merged version is uploaded back to the remote server.\n
-   Note that only the files that have changed (modified/added/removed) will be uploaded.
-"""
-)
-@click.option("--force", is_flag=True, help="Force push")
-@authentication_options
-@log_options
-def push(
-    force,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
+def _push(
+    force, auth_type, username, password, save_password, ignore_saved_user_info, verbose
 ):
     set_log_level(verbose)
-
-    def _upload(client, project_data, path):
-        # initial factorisation effort
-        path = Path(path)
-        logger.debug(f"Uploading {path}")
-        project_id = project_data["_id"]
-        folder_id = client.check_or_create_folder(project_data, path.parent)
-        p = Path(repo.working_dir).joinpath(path)
-        client.upload_file(project_id, folder_id, str(p))
 
     def _delete(client, project_data, path):
         # initial factorisation effort
@@ -861,14 +856,19 @@ def push(
     diff_index = sync_commit.diff(master_commit)
 
     project_data = client.get_project_data(project_id)
+    folders = {f["folder_id"] for f in walk_folders(project_data)}
 
     logger.debug("Modify files to upload :")
     for d in diff_index.iter_change_type("M"):
-        _upload(client, project_data, d.a_path)
+        if _upload(repo, client, project_data, d.a_path) not in folders:
+            project_data = client.get_project_data(project_id)
+            folders = {f["folder_id"] for f in walk_folders(project_data)}
 
     logger.debug("new files to upload :")
     for d in diff_index.iter_change_type("A"):
-        _upload(client, project_data, d.a_path)
+        if _upload(repo, client, project_data, d.a_path) not in folders:
+            project_data = client.get_project_data(project_id)
+            folders = {f["folder_id"] for f in walk_folders(project_data)}
 
     logger.debug("delete files :")
     for d in diff_index.iter_change_type("D"):
@@ -881,16 +881,53 @@ def push(
         # 1) deleting the old one (a)
         # 2) creating the new one (b)
         _delete(client, project_data, d.a_path)
-        _upload(client, project_data, d.b_path)
+        if _upload(repo, client, project_data, d.b_path) not in folders:
+            project_data = client.get_project_data(project_id)
+            folders = {f["folder_id"] for f in walk_folders(project_data)}
     logger.debug("Path type changes :")
     for d in diff_index.iter_change_type("T"):
         # This one is maybe
         # 1) deleting the old one (a)
         # 2) creating the new one (b)
         _delete(client, project_data, d.a_path)
-        _upload(client, project_data, d.b_path)
+        if _upload(repo, client, project_data, d.b_path) not in folders:
+            project_data = client.get_project_data(project_id)
+            folders = {f["folder_id"] for f in walk_folders(project_data)}
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         update_ref(repo, message=COMMIT_MESSAGE_PUSH)
+
+
+@cli.command(
+    help="""Synchronize the local copy with the remote version.
+
+This works as follow:
+
+1. The remote version is pulled (see the :program:`pull` command)\n
+2. After the merge succeed, the merged version is uploaded back to the remote server.\n
+   Note that only the files that have changed (modified/added/removed) will be uploaded.
+"""
+)
+@click.option("--force", is_flag=True, help="Force push")
+@authentication_options
+@log_options
+def push(
+    force,
+    auth_type,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
+):
+    _push(
+        force,
+        auth_type,
+        username,
+        password,
+        save_password,
+        ignore_saved_user_info,
+        verbose,
+    )
 
 
 @cli.command(
@@ -907,12 +944,19 @@ This litteraly creates a new remote project in sync with the local version.
     default=True,
     help="""force to check https certificate or not""",
 )
+@click.option(
+    "--whole-project-upload/--no-whole-project-upload",
+    default=True,
+    help="""upload whole project in a zip file to the server/ or
+upload sequentially file by file to the server""",
+)
 @authentication_options
 @log_options
 def new(
     projectname,
     base_url,
     https_cert_check,
+    whole_project_upload,
     auth_type,
     username,
     password,
@@ -941,17 +985,27 @@ def new(
 
     with tempfile.TemporaryDirectory() as tmp:
         archive_name = os.path.join(tmp, f"{projectname}.zip")
+
         with ZipFile(archive_name, "w") as z:
             for f in iter_file:
-                logger.debug(f"Adding {f.path} to the archive")
+                logger.debug(f"Adding {f.path} to the archive {archive_name}")
                 z.write(f.path)
-
+                if not whole_project_upload and Path(f.path).is_file():
+                    logger.debug("sequential upload, only one file in zip")
+                    break
         response = client.upload(archive_name)
-        logger.info(
-            "Successfully uploaded {} [{}]".format(projectname, response["project_id"])
-        )
+        project_id = response["project_id"]
+        logger.info(f"Successfully uploaded {projectname} [{project_id}]")
 
-        refresh_project_information(
-            repo, base_url, response["project_id"], https_cert_check
-        )
+        refresh_project_information(repo, base_url, project_id, https_cert_check)
+        if not whole_project_upload:
+            iter_file = repo.tree().traverse()
+            project_data = client.get_project_data(project_id)
+            folders = {f["folder_id"] for f in walk_folders(project_data)}
+            for f in iter_file:
+                if Path(f.path).is_file():
+                    logger.debug(f"upload {f.path} to server")
+                    if _upload(repo, client, project_data, f.path) not in folders:
+                        project_data = client.get_project_data(project_id)
+                        folders = {f["folder_id"] for f in walk_folders(project_data)}
         update_ref(repo, message=COMMIT_MESSAGE_UPLOAD)
