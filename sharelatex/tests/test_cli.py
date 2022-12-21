@@ -209,6 +209,8 @@ class TestCli(unittest.TestCase):
         def _test_clone_and_push_local_addition(project=None):
             """Addition of a local file"""
             check_call("echo test > main2.tex", shell=True)
+            """Addition of a local file with utf-8 chars"""
+            check_call("echo testé España > fiché.tex", shell=True)
             project.repo.git.add(".")
             project.repo.index.commit("test")
             check_call(f"git slatex push {force} -vvv", shell=True)
@@ -216,6 +218,11 @@ class TestCli(unittest.TestCase):
 
             # for some reason there's a trailing \n...
             self.assertEqual("test\n", remote_content)
+
+            remote_content = project.get_doc_by_path("./fiché.tex")
+
+            # for some reason there's a trailing \n...
+            self.assertEqual("testé España\n", remote_content)
 
         _test_clone_and_push_local_addition()
 
