@@ -140,6 +140,19 @@ def walk_files(project_data):
     return walk_project_data(project_data, lambda x: x["type"] == "file")
 
 
+def walk_folders(project_data):
+    """Iterates on the folders only of a project.
+
+    Args:
+        project_data (dict): The project data as retrieved by
+            :py:meth:`sharelatex.SyncClient.get_project_data`
+
+    Raises:
+        StopIteration if the file isn't found
+    """
+    return walk_project_data(project_data, lambda x: x["type"] == "folder")
+
+
 def check_login_error(response):
     """Check if there's an error in the request response
 
