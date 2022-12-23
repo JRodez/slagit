@@ -6,6 +6,7 @@ import tempfile
 from typing import Any, Dict, List, Union
 from zipfile import ZipFile
 import datetime
+import time
 
 import dateutil.parser
 
@@ -66,6 +67,28 @@ PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
 MAX_NUMBER_ATTEMPTS = 3
+
+
+class RateLimiter:
+    """Ensure not overpass the max_rate events by seconds by sleep an amount
+    of time if necessary"""
+
+    def event_inc_passthrough(self) -> None:
+        self.n_events += 1
+
+    def event_inc(self, wait_interval: float = 0.1) -> None:
+        t1 = time.time()
+        self.n_events += 1
+        while self.n_events / (t1 - self.t0) > self.max_rate:
+            time.sleep(wait_interval)
+            t1 = time.time()
+
+    def __init__(self, max_rate: float) -> None:
+        self.max_rate = max_rate
+        self.n_events = 0
+        self.t0 = time.time()
+        if self.max_rate <= 0.0:
+            self.event_inc = self.event_inc_passthrough
 
 
 class Config:
@@ -950,6 +973,13 @@ This litteraly creates a new remote project in sync with the local version.
     help="""upload whole project in a zip file to the server/ or
 upload sequentially file by file to the server""",
 )
+@click.option(
+    "--rate-max-uploads-by-sec",
+    default=0.0,
+    help="""number of max uploads
+ by seconds to the server (some servers limit the this rate),
+ useful with --no-whole-project-upload""",
+)
 @authentication_options
 @log_options
 def new(
@@ -957,6 +987,7 @@ def new(
     base_url,
     https_cert_check,
     whole_project_upload,
+    rate_max_uploads_by_sec,
     auth_type,
     username,
     password,
@@ -996,16 +1027,23 @@ def new(
         response = client.upload(archive_name)
         project_id = response["project_id"]
         logger.info(f"Successfully uploaded {projectname} [{project_id}]")
+        try:
+            refresh_project_information(repo, base_url, project_id, https_cert_check)
+            if not whole_project_upload:
+                iter_file = repo.tree().traverse()
+                project_data = client.get_project_data(project_id)
+                upload_rate_limiter = RateLimiter(rate_max_uploads_by_sec)
+                folders = {f["folder_id"] for f in walk_folders(project_data)}
+                for f in iter_file:
+                    if Path(f.path).is_file():
+                        if _upload(repo, client, project_data, f.path) not in folders:
+                            project_data = client.get_project_data(project_id)
+                            folders = {
+                                f["folder_id"] for f in walk_folders(project_data)
+                            }
+                        upload_rate_limiter.event_inc()
+        except Exception as inst:
+            client.delete(project_id, forever=True)
+            raise inst
 
-        refresh_project_information(repo, base_url, project_id, https_cert_check)
-        if not whole_project_upload:
-            iter_file = repo.tree().traverse()
-            project_data = client.get_project_data(project_id)
-            folders = {f["folder_id"] for f in walk_folders(project_data)}
-            for f in iter_file:
-                if Path(f.path).is_file():
-                    logger.debug(f"upload {f.path} to server")
-                    if _upload(repo, client, project_data, f.path) not in folders:
-                        project_data = client.get_project_data(project_id)
-                        folders = {f["folder_id"] for f in walk_folders(project_data)}
         update_ref(repo, message=COMMIT_MESSAGE_UPLOAD)
