@@ -157,6 +157,14 @@ def get_project_collaborators(project_id):
     return result
 
 
+def getUserIdByEmail(address: str) -> ObjectId:
+    user = DB.users.find_one({"email": address})
+    if user:
+        return user["_id"]
+    else:
+        return None
+
+
 def changeMailAdress(old_adress, new_adress):
     # new_adress mustn't already be in DB
     if DB.users.find({"email": new_adress}).count() != 0:
@@ -165,12 +173,15 @@ def changeMailAdress(old_adress, new_adress):
 
 
 def changeProjectOnwer(project_id, new_onwer_id):
-    project = DB["projects"].find({"_id": ObjectId(project_id)}).limit(1)
-    if project.count() == 0:
+    project = DB["projects"].find_one({"_id": ObjectId(project_id)})
+    if project:
+        user = DB.users.find_one({"_id": ObjectId(new_onwer_id)})
+        if user:
+            return DB["projects"].update_one(
+                {"_id": ObjectId(project_id)},
+                {"$set": {"owner_ref": ObjectId(new_onwer_id)}},
+            )
+        else:
+            raise NameError("UserIdNotInDB")
+    else:
         raise NameError("ProjectIdNotDB")
-    users = DB.users.find({"_id": ObjectId(new_onwer_id)})
-    if users.count() == 0:
-        raise NameError("UserIdNotInDB")
-    return DB["projects"].update_one(
-        {"_id": ObjectId(project_id)}, {"$set": {"owner_ref": ObjectId(new_onwer_id)}}
-    )
