@@ -1042,8 +1042,8 @@ def new(
                                 f["folder_id"] for f in walk_folders(project_data)
                             }
                         upload_rate_limiter.event_inc()
+            update_ref(repo, message=COMMIT_MESSAGE_UPLOAD)
         except Exception as inst:
+            logger.debug(f"delete failed project {project_id} into server ")
             client.delete(project_id, forever=True)
             raise inst
-
-        update_ref(repo, message=COMMIT_MESSAGE_UPLOAD)
