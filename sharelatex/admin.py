@@ -101,18 +101,18 @@ def _get_projects_before_after(days: int, selector="$lt"):
     since the number of day passed in parameter,
     and in value their lastUpdated date"""
 
-    ids_and_lastUpadted = {}
+    ids_and_lastUpdated = {}
     projects = DB["projects"]
 
     date = datetime.datetime.now() - datetime.timedelta(days=days)
     inactive_projects = projects.find({"lastUpdated": {selector: date}})
 
     for inactive_project in inactive_projects:
-        ids_and_lastUpadted[str(inactive_project["_id"])] = inactive_project[
+        ids_and_lastUpdated[str(inactive_project["_id"])] = inactive_project[
             "lastUpdated"
         ]
 
-    return ids_and_lastUpadted
+    return ids_and_lastUpdated
 
 
 def get_inactive_projects(days: int = 365) -> Mapping[str, datetime.datetime]:
@@ -160,19 +160,24 @@ def get_project_collaborators(project_id):
 def getUserIdByEmail(address: str) -> ObjectId:
     user = DB.users.find_one({"email": address})
     if user:
-        return user["_id"]
+        return str(user["_id"])
     else:
         return None
 
 
-def changeMailAdress(old_adress, new_adress):
-    # new_adress mustn't already be in DB
-    if DB.users.find({"email": new_adress}).count() != 0:
-        raise NameError("NewAdressAlreadyInDB")
-    return DB.users.update_one({"email": old_adress}, {"$set": {"email": new_adress}})
+def changeMailAddress(old_address, new_address):
+    if DB.users.find_one({"email": old_address}):
+        # new_address mustn't already be in DB
+        if DB.users.find_one({"email": new_address}):
+            raise NameError("NewAddressAlreadyInDB")
+        return DB.users.update_one(
+            {"email": old_address}, {"$set": {"email": new_address}}
+        )
+    else:
+        raise NameError("OldAddressNotInDB")
 
 
-def changeProjectOnwer(project_id, new_onwer_id):
+def changeProjectOwner(project_id, new_onwer_id):
     project = DB["projects"].find_one({"_id": ObjectId(project_id)})
     if project:
         user = DB.users.find_one({"_id": ObjectId(new_onwer_id)})
