@@ -1,3 +1,4 @@
+from functools import wraps
 import getpass
 import logging
 import os
@@ -7,6 +8,7 @@ from typing import Any, Dict, List, Union
 from zipfile import ZipFile
 import datetime
 import time
+import sys
 
 import dateutil.parser
 
@@ -29,6 +31,23 @@ logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
 set_logger(logger)
+
+
+class SharelatexError(Exception):
+    def info(self) -> str:
+        return ""
+
+
+class RepoNotCleanError(SharelatexError):
+    def info(self) -> str:
+        # the constant is used to check the error in the test
+        # a better version would be to give the list of files explicitly here
+        # for now we print the output of `git status` just before raising
+        # this exception.
+        return (
+            f"\n---\n{MESSAGE_REPO_ISNT_CLEAN}. "
+            "There mustn't be any untracked/uncommited files here."
+        )
 
 
 def set_log_level(verbose=0):
@@ -57,7 +76,7 @@ COMMIT_MESSAGES = [
     COMMIT_MESSAGE_UPLOAD,
 ]
 
-MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean."
+MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean"
 
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
@@ -182,7 +201,7 @@ def get_clean_repo(path=None):
     # Fail if the repo is clean
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
         logger.error(repo.git.status())
-        raise Exception(MESSAGE_REPO_ISNT_CLEAN)
+        raise RepoNotCleanError()
     return repo
 
 
@@ -345,6 +364,27 @@ def update_ref(repo, message="update_ref"):
     repo.index.commit(f"{message}")
     sync_branch = repo.create_head(SYNC_BRANCH, force=True)
     sync_branch.commit = "HEAD"
+
+
+def handle_exception(*exceptions: SharelatexError):
+    """Decorator to handle the cli exceptions.
+
+    Decorated
+    """
+
+    def wrapper(f):
+        @wraps(f)
+        def inner(*args, **kwargs):
+            try:
+                r = f(*args, **kwargs)
+            except exceptions as e:
+                print(e.info())
+                sys.exit(1)
+            return r
+
+        return inner
+
+    return wrapper
 
 
 @click.group()
@@ -701,6 +741,7 @@ def share(
 )
 @authentication_options
 @log_options
+@handle_exception(RepoNotCleanError)
 def pull(
     auth_type,
     username,
@@ -762,6 +803,7 @@ It works as follow:
 )
 @authentication_options
 @log_options
+@handle_exception(RepoNotCleanError)
 def clone(
     projet_url,
     directory,
@@ -933,6 +975,7 @@ This works as follow:
 @click.option("--force", is_flag=True, help="Force push")
 @authentication_options
 @log_options
+@handle_exception(RepoNotCleanError)
 def push(
     force,
     auth_type,
@@ -982,6 +1025,7 @@ upload sequentially file by file to the server""",
 )
 @authentication_options
 @log_options
+@handle_exception(RepoNotCleanError)
 def new(
     projectname,
     base_url,
