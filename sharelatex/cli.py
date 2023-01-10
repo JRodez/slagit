@@ -153,7 +153,7 @@ class Config:
         """Get a config value in a specific section of the config.
 
                 Note: this returns the associated value if found.
-                      Otherwise it returns the default value.
+                      Otherwise, it returns the default value.
 
                 Args:
                     section (str): the section name: str
@@ -184,9 +184,9 @@ def get_clean_repo(path=None):
 
     Note:
 
-        This initialize the git repository and fails if the repo isn't clean.
+        This initializes the git repository and fails if the repo isn't clean.
         This is run prior to many operations to make sure there isn't any
-        untracked/uncomitted files in the repo.
+        untracked/uncommitted files in the repo.
 
     Args:
         path (str): the path of the repository in the local file system.
@@ -772,7 +772,7 @@ def pull(
 
 @cli.command(
     help=f"""
-Get (clone) the files from sharelatex projet URL and create a local git depot.
+Get (clone) the files from sharelatex project URL and create a local git depot.
 
 The optional target directory will be created if it doesn't exist. The command
 fails if it already exists. Connection information can be saved in the local git
@@ -1000,7 +1000,7 @@ def push(
     help="""
 Upload the current directory as a new sharelatex project.
 
-This litteraly creates a new remote project in sync with the local version.
+This literally creates a new remote project in sync with the local version.
 """
 )
 @click.argument("projectname")
