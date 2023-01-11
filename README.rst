@@ -133,4 +133,3 @@ Create a remote project from a local git
 .. code:: bash
 
    git slatex new [OPTIONS] PROJECTNAME BASE_URL
-
