@@ -132,4 +132,5 @@ Create a remote project from a local git
 
 .. code:: bash
 
-   git slatex new <base_server_URL> <new_project_name>
+   git slatex new [OPTIONS] PROJECTNAME BASE_URL
+
