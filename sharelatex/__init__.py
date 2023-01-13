@@ -53,7 +53,7 @@ def walk_project_data(project_data, predicate=lambda x: True):
         project_data (dict): The project data as retrieved by
             :py:meth:`sharelatex.SyncClient.get_project_data`
         predicate (lambda): Lambda to filter the entry
-            an entry is a dictionnary as in
+            an entry is a dictionary as in
             {"folder_id": <id of the current folder>,
              "folder_path": <complete path of the folder /a/folder/>,
              "name": <name of the entity>,
@@ -182,7 +182,7 @@ def check_login_error(response):
         if t is not None and t == "error":
             raise Exception(message.get("text", "Unknown error"))
     except requests.exceptions.JSONDecodeError:
-        # this migh be a successful login here
+        # this might be a successful login here
         logger.info("no Login error message")
         pass
 
@@ -243,7 +243,7 @@ class Authenticator:
 
         Returns:
             Tuple of login data and the cookie (containing the session id)
-            These two informations can be use to forge further requests
+            These two information can be used to forge further requests
         """
         return None
 
@@ -330,10 +330,10 @@ class LegacyAuthenticator(DefaultAuthenticator):
 
 
 class GitlabAuthenticator(DefaultAuthenticator):
-    """We use Gitlab as authentification backend (using OAUTH2).
+    """We use Gitlab as authentication backend (using OAUTH2).
 
     In this context, the login page redirect to the login page of gitlab(inria),
-    which in turn redirect to overleaf. upon success we get back the project
+    which in turn redirect to Overleaf. upon success, we get back the project
     page where the csrf token can be found
 
     More precisely there are two login forms available
@@ -469,11 +469,11 @@ class SyncClient:
             username (str): Username of the user (the email)
             password (str): Password of the user
             verify (bool): True iff SSL certificates must be verified
-            authenticator Authenticator to use
+            authenticator: Authenticator to use
 
         """
         if base_url == "":
-            raise Exception("projet_url is not well formed or missing")
+            raise Exception("project_url is not well formed or missing")
         self.base_url = base_url
         self.verify = verify
 
@@ -528,7 +528,7 @@ class SyncClient:
         """Get the project hierarchy and some metadata.
 
         This mimics the browser behaviour when opening the project editor. This
-        will open a websocket connection to the server to get the informations.
+        will open a websocket connection to the server to get the information.
 
         Args:
             project_id (str): The id of the project
@@ -580,7 +580,7 @@ class SyncClient:
                 socketIO.wait(0.1)
             logger.debug("[socketIO] wait for project data finish !")
         # NOTE(msimonin): Check return type
-        # this must be a valid dict (eg not None)
+        # this must be a valid dict (e.g., not None)
         return storage.project_data
 
     def _request(self, verb, url, *args, **kwargs):
@@ -652,7 +652,7 @@ class SyncClient:
         """Get a document from a project .
 
         This mimics the browser behavior when opening the project editor. This
-        will open a websocket connection to the server to get the informations.
+        will open a websocket connection to the server to get the information.
 
         Args:
             project_id (str): The id of the project
@@ -937,7 +937,7 @@ class SyncClient:
         return response
 
     def share(self, project_id, email, can_edit=True):
-        """Send a invitation to share (edit/view) a project.
+        """Send an invitation to share (edit/view) a project.
 
         Args:
             project_id (str): The project id of the project to share

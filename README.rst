@@ -32,7 +32,7 @@ Installation
 Compatibility notes
 -------------------
 
-The tool is targetting the community edition of ShareLatex/Overleaf and we are
+The tool is targeting the community edition of ShareLatex/Overleaf and we are
 testing it on:
 
 - https://sharelatex.irisa.fr -- ``legacy`` authentication method
@@ -76,7 +76,7 @@ Display the possible actions
       compile  Compile the remote version of a project
       new      Upload the current directory as a new sharelatex project
       pull     Pull the files from sharelatex.
-      push     Push the commited changes back to sharelatex
+      push     Push the committed changes back to sharelatex
 
 
 For instance you can get the help on a specific sub-command with the following:
