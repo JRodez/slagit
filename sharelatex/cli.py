@@ -353,7 +353,7 @@ def getClient(
     return client
 
 
-def update_ref(repo, message="update_ref"):
+def update_ref(repo, message="update_ref", git_branch: str = SYNC_BRANCH) -> None:
     """Makes the remote pointer to point on the latest revision we have.
 
     This is called after a successful clone, push, new. In short when we
@@ -364,7 +364,7 @@ def update_ref(repo, message="update_ref"):
     git.add(".")
     # with this we can have two consecutive commit with the same content
     repo.index.commit(f"{message}")
-    sync_branch = repo.create_head(SYNC_BRANCH, force=True)
+    sync_branch = repo.create_head(git_branch, force=True)
     sync_branch.commit = "HEAD"
 
 
@@ -392,6 +392,15 @@ def handle_exception(*exceptions: SharelatexError):
 @click.group()
 def cli():
     pass
+
+
+_GIT_BRANCH_OPTION = click.option(
+    "--git-branch",
+    "-b",
+    default=SYNC_BRANCH,
+    help=f"The name of a branch. We will commit the changes from Sharelatex "
+    f"on this branch.\n\n Default: {SYNC_BRANCH}",
+)
 
 
 def log_options(function):
@@ -574,12 +583,12 @@ def _sync_remote_docs(
                 os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
-def _pull(repo, client, project_id):
+def _pull(repo, client, project_id, git_branch: str):
     # attempt to "merge" the remote and the local working copy
 
     git = repo.git
     active_branch = repo.active_branch.name
-    git.checkout(SYNC_BRANCH)
+    git.checkout(git_branch)
     working_path = Path(repo.working_tree_dir)
     logger.debug("find last commit using remote server")
     # for optimization purpose
@@ -603,9 +612,7 @@ def _pull(repo, client, project_id):
         objects = [Path(b.abspath) for b in repo.head.commit.tree.traverse()]
         objects.reverse()
 
-        datetimes_dict = _get_datetime_from_git(
-            repo, SYNC_BRANCH, objects, working_path
-        )
+        datetimes_dict = _get_datetime_from_git(repo, git_branch, objects, working_path)
 
         _sync_deleted_items(working_path, remote_items, objects)
 
@@ -624,7 +631,7 @@ def _pull(repo, client, project_id):
         )
         # TODO reset en cas d'erreur ?
         # on se place sur la branche de synchro
-        git.checkout(SYNC_BRANCH)
+        git.checkout(git_branch)
     except Exception as e:
         # hard reset ?
         git.reset("--hard")
@@ -652,9 +659,9 @@ def _pull(repo, client, project_id):
             f"""Path type changed in server:
             {[d.a_path for d in diff_index.iter_change_type("T")]}"""
         )
-        update_ref(repo, message=COMMIT_MESSAGE_PREPULL)
+        update_ref(repo, message=COMMIT_MESSAGE_PREPULL, git_branch=git_branch)
     git.checkout(active_branch)
-    git.merge(SYNC_BRANCH)
+    git.merge(git_branch)
 
 
 @cli.command(help="Compile the remote version of a project")
@@ -738,11 +745,13 @@ def share(
 
     In the current repository, it works as follows:
 
-    1. Pull in ``{SYNC_BRANCH}`` branch the latest version of the remote project\n
+    1. Pull in the latest version of the remote project in ``{SYNC_BRANCH}``
+    respectively the given branch.\n
     2. Attempt a merge in the working branch. If the merge can't be done automatically,
        you will be required to fix the conflict manually
     """
 )
+@_GIT_BRANCH_OPTION
 @authentication_options
 @log_options
 @handle_exception(RepoNotCleanError)
@@ -753,7 +762,8 @@ def pull(
     save_password,
     ignore_saved_user_info,
     verbose,
-):
+    git_branch: str,
+) -> None:
     set_log_level(verbose)
 
     # Fail if the repo is not clean
@@ -771,7 +781,7 @@ def pull(
         https_cert_check,
         save_password,
     )
-    _pull(repo, client, project_id)
+    _pull(repo, client, project_id, git_branch=git_branch)
 
 
 @cli.command(
@@ -786,8 +796,9 @@ It works as follow:
 
     1. Download and unzip the remote project in the target directory\n
     2. Initialize a fresh git repository\n
-    3. Create an extra ``{SYNC_BRANCH}`` to keep track of the remote versions of
-       the project. This branch must not be updated manually.
+    3. Create a new branch named ``{SYNC_BRANCH}`` respectively the passed name,
+    to keep track of the remote versions of the project.
+    This branch MUST NOT be updated manually!
 """
 )
 @click.argument(
@@ -805,6 +816,7 @@ It works as follow:
     help="""download whole project in a zip file from the server/ or download
  sequentially file by file from the server""",
 )
+@_GIT_BRANCH_OPTION
 @authentication_options
 @log_options
 @handle_exception(RepoNotCleanError)
@@ -819,7 +831,8 @@ def clone(
     https_cert_check,
     whole_project_download,
     verbose,
-):
+    git_branch: str,
+) -> None:
     set_log_level(verbose)
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
@@ -860,10 +873,10 @@ def clone(
         raise inst
     if whole_project_download:
         client.download_project(project_id, path=directory)
-        update_ref(repo, message=COMMIT_MESSAGE_CLONE)
+        update_ref(repo, message=COMMIT_MESSAGE_CLONE, git_branch=git_branch)
     else:
-        update_ref(repo, message=COMMIT_MESSAGE_CLONE)
-        _pull(repo, client, project_id)
+        update_ref(repo, message=COMMIT_MESSAGE_CLONE, git_branch=git_branch)
+        _pull(repo, client, project_id, git_branch=git_branch)
     # TODO(msimonin): add a decent default .gitignore ?
 
 
@@ -879,7 +892,14 @@ def _upload(repo, client, project_data, path):
 
 
 def _push(
-    force, auth_type, username, password, save_password, ignore_saved_user_info, verbose
+    force,
+    auth_type,
+    username,
+    password,
+    save_password,
+    ignore_saved_user_info,
+    verbose,
+    git_branch: str,
 ):
     set_log_level(verbose)
 
@@ -916,12 +936,12 @@ def _push(
     )
 
     if not force:
-        _pull(repo, client, project_id)
+        _pull(repo, client, project_id, git_branch=git_branch)
     config = Config(repo)
     # prevent git returning quoted path in diff when file path has unicode char
     config.set_value("core", "quotepath", "off")
     master_commit = repo.commit("HEAD")
-    sync_commit = repo.commit(SYNC_BRANCH)
+    sync_commit = repo.commit(git_branch)
     diff_index = sync_commit.diff(master_commit)
 
     project_data = client.get_project_data(project_id)
@@ -963,7 +983,7 @@ def _push(
             project_data = client.get_project_data(project_id)
             folders = {f["folder_id"] for f in walk_folders(project_data)}
     if repo.is_dirty(index=True, working_tree=True, untracked_files=True):
-        update_ref(repo, message=COMMIT_MESSAGE_PUSH)
+        update_ref(repo, message=COMMIT_MESSAGE_PUSH, git_branch=git_branch)
 
 
 @cli.command(
@@ -976,6 +996,7 @@ This works as follow:
    Note that only the files that have changed (modified/added/removed) will be uploaded.
 """
 )
+@_GIT_BRANCH_OPTION
 @click.option("--force", is_flag=True, help="Force push")
 @authentication_options
 @log_options
@@ -988,6 +1009,7 @@ def push(
     save_password,
     ignore_saved_user_info,
     verbose,
+    git_branch: str,
 ):
     _push(
         force,
@@ -997,6 +1019,7 @@ def push(
         save_password,
         ignore_saved_user_info,
         verbose,
+        git_branch=git_branch,
     )
 
 
@@ -1027,6 +1050,7 @@ upload sequentially file by file to the server""",
  by seconds to the server (some servers limit the this rate),
  useful with --no-whole-project-upload""",
 )
+@_GIT_BRANCH_OPTION
 @authentication_options
 @log_options
 @handle_exception(RepoNotCleanError)
@@ -1042,7 +1066,8 @@ def new(
     save_password,
     ignore_saved_user_info,
     verbose,
-):
+    git_branch: str,
+) -> None:
     set_log_level(verbose)
     repo = get_clean_repo()
 
@@ -1090,7 +1115,7 @@ def new(
                                 f["folder_id"] for f in walk_folders(project_data)
                             }
                         upload_rate_limiter.event_inc()
-            update_ref(repo, message=COMMIT_MESSAGE_UPLOAD)
+            update_ref(repo, message=COMMIT_MESSAGE_UPLOAD, git_branch=git_branch)
         except Exception as inst:
             logger.debug(f"delete failed project {project_id} into server ")
             client.delete(project_id, forever=True)
