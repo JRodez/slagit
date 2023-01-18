@@ -499,9 +499,9 @@ def _sync_remote_files(client, project_id, working_path, remote_items, datetimes
             Path(remote_file["folder_path"]).joinpath(remote_file["name"])
         )
         if local_path.is_file():
-
-            if relative_path in datetimes_dict:
-                local_time = datetimes_dict[relative_path]
+            relative_path_for_dict = relative_path.replace(os.path.sep, "/")
+            if relative_path_for_dict in datetimes_dict:
+                local_time = datetimes_dict[relative_path_for_dict]
             else:
                 local_time = datetime.datetime.fromtimestamp(
                     local_path.stat().st_mtime, datetime.timezone.utc
@@ -537,8 +537,9 @@ def _sync_remote_docs(
             Path(remote_doc["folder_path"]).joinpath(remote_doc["name"])
         )
         if local_path.is_file():
-            if relative_path in datetimes_dict:
-                local_time = datetimes_dict[relative_path]
+            relative_path_for_dict = relative_path.replace(os.path.sep, "/")
+            if relative_path_for_dict in datetimes_dict:
+                local_time = datetimes_dict[relative_path_for_dict]
             else:
                 local_time = datetime.datetime.fromtimestamp(
                     local_path.stat().st_mtime, datetime.timezone.utc
