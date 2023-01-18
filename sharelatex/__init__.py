@@ -666,7 +666,7 @@ class SyncClient:
         r.raise_for_status()
         return r.status_code == 204
 
-    def get_chats_message(self, project_id):
+    def get_chats_messages(self, project_id):
         """Get a list of messages in chat channel of a project.
 
         Args:
