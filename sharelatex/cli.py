@@ -26,6 +26,8 @@ from sharelatex import (
     walk_folders,
 )
 
+URL_MALFORMED_ERROR_MESSAGE = "projet_url is not well formed or missing"
+
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 logger.setLevel(logging.INFO)
@@ -824,7 +826,7 @@ def clone(
     project_id = slashparts[-1]
     base_url = "/".join(slashparts[:-2])
     if base_url == "":
-        raise Exception("projet_url is not well formed or missing")
+        raise Exception(URL_MALFORMED_ERROR_MESSAGE)
     if directory == "":
         directory = Path(os.getcwd())
         directory = Path(directory, project_id)

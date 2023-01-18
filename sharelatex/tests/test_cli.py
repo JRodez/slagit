@@ -1,19 +1,23 @@
 from contextlib import contextmanager
+
 from git import Repo
 import logging
 import os
-from subprocess import check_call, check_output, CalledProcessError, STDOUT
+from subprocess import check_call
 import tempfile
 import unittest
 import shlex
 from pathlib import Path
 import queue
-
+from click.testing import CliRunner
 from sharelatex import SyncClient, walk_project_data, get_authenticator_class
-from sharelatex.cli import MESSAGE_REPO_ISNT_CLEAN
+from sharelatex.cli import (
+    MESSAGE_REPO_ISNT_CLEAN,
+    cli as cli_cli,
+    URL_MALFORMED_ERROR_MESSAGE,
+)
 
 from ddt import ddt, data, unpack
-
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -132,7 +136,9 @@ def project(project_name, branch=None):
                 f"--password={shlex.quote(password)} "
                 f"--save-password --no-https-cert-check"
             )
-            check_call(f"git slatex clone {project.url} {args}", shell=True)
+            arguments_for_cli = ["clone", project.url] + [a for a in args.split(" ")]
+            result = CliRunner().invoke(cli_cli, arguments_for_cli)
+            assert result.exit_code == 0
             os.chdir(project.fs_path)
             check_call("git config --local user.email 'test@test.com'", shell=True)
             check_call("git config --local user.name 'me'", shell=True)
@@ -169,18 +175,26 @@ def new_project(branch=None):
 
 @ddt
 class TestCli(unittest.TestCase):
+    _RUNNER: CliRunner
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._RUNNER = CliRunner()
+
     @new_project()
     def test_clone(self, project=None):
         pass
 
     @new_project()
     def test_clone_and_pull(self, project=None):
-        check_call("git slatex pull -vvv", shell=True)
+        result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+        self.assertEqual(result.exit_code, 0)
 
     @data("--force", "")
     @new_project()
     def test_clone_and_push(self, force, project=None):
-        check_call(f"git slatex push {force} -vvv", shell=True)
+        result = self._RUNNER.invoke(cli_cli, ["push", "-vvv"])
+        self.assertEqual(result.exit_code, 0)
 
     @data("test_branch", None)
     def test_clone_and_push_local_modification(self, branch):
@@ -191,7 +205,8 @@ class TestCli(unittest.TestCase):
             project.repo.git.add(".")
             project.repo.index.commit("test")
 
-            check_call("git slatex push -vvv", shell=True)
+            result = self._RUNNER.invoke(cli_cli, ["push", "-vvv"])
+            self.assertEqual(result.exit_code, 0)
             remote_content = project.get_doc_by_path("./main.tex")
 
             # for some reason there's a trailing \n...
@@ -213,7 +228,10 @@ class TestCli(unittest.TestCase):
             check_call("echo testé España > fiché.tex", shell=True)
             project.repo.git.add(".")
             project.repo.index.commit("test")
-            check_call(f"git slatex push {force} -vvv", shell=True)
+            result = self._RUNNER.invoke(
+                cli_cli, ["push", "-vvv"] + ([] if force == "" else [force])
+            )
+            self.assertEqual(result.exit_code, 0)
             remote_content = project.get_doc_by_path("./main2.tex")
 
             # for some reason there's a trailing \n...
@@ -253,7 +271,8 @@ class TestCli(unittest.TestCase):
             self.assertFalse(os.path.exists("test_bin/test.jpg"))
 
             # pull
-            check_call("git slatex pull -vvv", shell=True)
+            result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+            self.assertEqual(result.exit_code, 0)
 
             # check the document
             self.assertTrue(os.path.exists("test/test.tex"))
@@ -280,7 +299,10 @@ class TestCli(unittest.TestCase):
             check_call("rm main.tex", shell=True)
             project.repo.git.add(".")
             project.repo.index.commit("test")
-            check_call(f"git slatex push {force} -vvv", shell=True)
+            result = self._RUNNER.invoke(
+                cli_cli, ["push", "-vvv"] + ([] if force == "" else [force])
+            )
+            self.assertEqual(result.exit_code, 0)
             with self.assertRaises(StopIteration) as _:
                 project.get_doc_by_path("./main.tex")
 
@@ -295,7 +317,8 @@ class TestCli(unittest.TestCase):
         def _test_clone_and_pull_remote_deletion(project=None, path="."):
             """Deletion of remote path"""
             project.delete_object_by_path(path)
-            check_call("git slatex pull -vvv", shell=True)
+            result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+            self.assertEqual(result.exit_code, 0)
             # TODO: we could check the diff
             self.assertFalse(os.path.exists(path))
 
@@ -325,12 +348,14 @@ class TestCli(unittest.TestCase):
             client.upload_file(project_id, folder_id, file_test_path)
             check_call(f"rm -rf {path}", shell=True)
             # update local project copy
-            check_call("git slatex pull -vvv", shell=True)
+            result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+            self.assertEqual(result.exit_code, 0)
             self.assertTrue(path.exists())
             self.assertTrue(file_test_path.exists())
             """Deletion of remote path"""
             project.delete_folder_by_path(path)
-            check_call("git slatex pull -vvv", shell=True)
+            result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+            self.assertEqual(result.exit_code, 0)
             # TODO: we could check the diff
             self.assertFalse(os.path.exists(path))
 
@@ -352,7 +377,8 @@ class TestCli(unittest.TestCase):
         project.repo.index.commit("test")
 
         # we're clean, pulling
-        check_call("git slatex pull -vvv", shell=True)
+        result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+        self.assertEqual(result.exit_code, 0)
         self.assertTrue(
             gitignore.exists(), "gitignore was committed and mustn't be deleted"
         )
@@ -365,46 +391,56 @@ class TestCli(unittest.TestCase):
         untracked = path / "untracked"
         check_call(f"echo 'this is untracked file'> {untracked}", shell=True)
 
-        with self.assertRaises(CalledProcessError) as cm:
-            check_output("git slatex pull -vvv", shell=True, stderr=STDOUT)
-        exception = cm.exception
-        self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
+        result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn(MESSAGE_REPO_ISNT_CLEAN, result.stdout)
 
-        with self.assertRaises(CalledProcessError) as cm:
-            check_output("git slatex push -vvv", shell=True, stderr=STDOUT)
-        exception = cm.exception
-        self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
+        result = self._RUNNER.invoke(cli_cli, ["push", "-vvv"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn(MESSAGE_REPO_ISNT_CLEAN, result.stdout)
 
-        username = project.username
-        password = project.password
-        with self.assertRaises(CalledProcessError) as cm:
-            check_output(
-                f"git slatex new test_new {BASE_URL} "
-                f"--username {username} "
-                f"--password {shlex.quote(password)} "
-                f"--auth_type {AUTH_TYPE}",
-                shell=True,
-                stderr=STDOUT,
-            )
-        exception = cm.exception
-        self.assertTrue(MESSAGE_REPO_ISNT_CLEAN in exception.output.decode())
+        result = self._RUNNER.invoke(
+            cli_cli,
+            [
+                "new",
+                "test_new",
+                BASE_URL,
+                "--username",
+                project.username,
+                "--password",
+                shlex.quote(project.password),
+                "--auth_type",
+                AUTH_TYPE,
+            ],
+        )
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn(MESSAGE_REPO_ISNT_CLEAN, result.stdout)
 
     def test_clone_malformed_project_URL(self):
         """try clone with malformed project URL"""
-        with self.assertRaises(Exception) as _:
-            check_call("git slatex clone not_a_PROJET_URL -vvv", shell=True)
+        result = self._RUNNER.invoke(cli_cli, ["clone", "not_a_PROJET_URL", "-vvv"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn(URL_MALFORMED_ERROR_MESSAGE, str(result.exception))
 
     @new_project()
     def test_new(self, project):
         username = project.username
         password = project.password
-        check_call(
-            f"git slatex new test_new {BASE_URL} "
-            f"--username {username} "
-            f"--password {shlex.quote(password)} "
-            f"--auth_type {AUTH_TYPE}",
-            shell=True,
+        result = self._RUNNER.invoke(
+            cli_cli,
+            [
+                "new",
+                "test_new",
+                BASE_URL,
+                "--username",
+                username,
+                "--password",
+                shlex.quote(password),
+                "--auth_type",
+                AUTH_TYPE,
+            ],
         )
+        self.assertEqual(result.exit_code, 0)
 
 
 class TestLib(unittest.TestCase):
