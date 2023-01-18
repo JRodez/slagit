@@ -18,6 +18,7 @@ from git import Repo, Blob, Tree
 from git.config import cp
 
 from sharelatex import (
+    AUTH_DICT,
     SyncClient,
     get_authenticator_class,
     set_logger,
@@ -410,7 +411,8 @@ def authentication_options(function):
         "--auth_type",
         "-a",
         default=None,
-        help="""Authentification type (gitlab|community|legacy).""",
+        help="""Authentication type.""",
+        type=click.Choice(AUTH_DICT.keys()),
     )(function)
 
     function = click.option(
