@@ -46,12 +46,12 @@ class RepoNotCleanError(SharelatexError):
         # this exception.
         return (
             f"\n---\n{MESSAGE_REPO_ISNT_CLEAN}. "
-            "There mustn't be any untracked/uncommited files here."
+            "There mustn't be any untracked/uncommitted files here."
         )
 
 
 def set_log_level(verbose=0):
-    """set log level from interger value"""
+    """set log level from integer value"""
     LOG_LEVELS = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
     logger.setLevel(LOG_LEVELS[verbose])
 
@@ -80,7 +80,7 @@ MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean"
 
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
-PROMPT_AUTH_TYPE = "Authentification type (*gitlab*|community|legacy): "
+PROMPT_AUTH_TYPE = "Authentication type (*gitlab*|community|legacy): "
 DEFAULT_AUTH_TYPE = "gitlab"
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
@@ -158,7 +158,7 @@ class Config:
                 Args:
                     section (str): the section name: str
                     key (str): the key to set
-                    default (str): the defaut value to apply
+                    default (str): the default value to apply
                     config_level (str): the config level to look for
                     see:
         https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.config_level
@@ -354,7 +354,7 @@ def getClient(
 def update_ref(repo, message="update_ref"):
     """Makes the remote pointer to point on the latest revision we have.
 
-    This is called after a successfull clone, push, new. In short when we
+    This is called after a successful clone, push, new. In short when we
     are sure the remote and the local are in sync.
     """
     git = repo.git
@@ -453,10 +453,10 @@ def test(verbose):
 
 
 def _sync_deleted_items(
-    working_path: Path, remote_items: Dict[Any, Any], objetcs: List[Union[Blob, Tree]]
+    working_path: Path, remote_items: Dict[Any, Any], objects: List[Union[Blob, Tree]]
 ):
     remote_path = [Path(fd["folder_path"]).joinpath(fd["name"]) for fd in remote_items]
-    for blob_path in objetcs:
+    for blob_path in objects:
         p_relative = blob_path.relative_to(working_path)
         # check the path and all of its parents dir
         if p_relative not in remote_path:
