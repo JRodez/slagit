@@ -648,6 +648,41 @@ class SyncClient:
         if not keep_zip:
             target_path.unlink()
 
+    def post_chat_message(self, project_id, message):
+        """Post a message in chat channel of a project.
+
+        Args:
+            project_id (str): The id of the project where post message
+            message (str): the message to post from current user connected
+
+        Raises:
+            Exception if the post failed
+        Returns:
+            a bool True if message post has succeeded
+        """
+        data = {"content": message, "_csrf": self.login_data["_csrf"]}
+        url = f"{self.base_url}/project/{project_id}/messages"
+        r = self._post(url, data=data, verify=self.verify)
+        r.raise_for_status()
+        return r.status_code == 204
+
+    def get_chats_message(self, project_id):
+        """Get a list of messages in chat channel of a project.
+
+        Args:
+            project_id (str): The id of the project that have chat messages
+
+        Raises:
+            Exception if the get failed
+        Returns:
+            a list of dictionaries contains messages information: such content,
+            timestamp of posted message, poster(user) information dictionary
+        """
+        url = f"{self.base_url}/project/{project_id}/messages"
+        r = self._get(url, verify=self.verify)
+        r.raise_for_status()
+        return r.json()
+
     def get_document(self, project_id, doc_id, dest_path=None):
         """Get a document from a project .
 
