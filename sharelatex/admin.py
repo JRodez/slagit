@@ -1,13 +1,12 @@
 import codecs
 import datetime
 import os
-from typing import Mapping
 import shutil
 import zipfile
+from typing import Mapping
 
 import pymongo
 from bson.objectid import ObjectId
-
 
 # Fetch the parameters from the env
 # - Align the name with those from the overleaf container
