@@ -1,10 +1,9 @@
-from contextlib import contextmanager
-import unittest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 import os
 import tempfile
-
+import unittest
+from contextlib import contextmanager
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from sharelatex.cli import _sync_deleted_items, _sync_remote_files
 

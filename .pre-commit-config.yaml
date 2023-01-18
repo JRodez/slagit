@@ -1,4 +1,10 @@
 repos:
+  - repo: https://github.com/PyCQA/isort.git
+    rev: 5.11.4
+    hooks:
+      - id: isort
+        args: [ "--profile", "black" ]
+
   - repo: https://github.com/psf/black
     rev: 22.3.0
     hooks:
@@ -8,7 +14,7 @@ repos:
     rev: 6.0.0
     hooks:
       - id: flake8
-        args: [--ignore=W503]
+        args: [ --ignore=W503 ]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.3.0
@@ -25,4 +31,4 @@ repos:
     rev: v2.34.0
     hooks:
       - id: pyupgrade
-        args: [--py37-plus]
+        args: [ --py37-plus ]

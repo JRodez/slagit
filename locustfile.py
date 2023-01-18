@@ -1,12 +1,11 @@
 import inspect
-import time
 import os
+import time
 
+from locust import User, events, task
 
 # inspired from https://github.com/gtato/sharelatex-loadgenerator
 from sharelatex import IrisaAuthenticator, SyncClient
-from locust import events, User, task
-
 
 BASE_URL = os.environ.get("CI_BASE_URL")
 USERNAME = os.environ.get("CI_USERNAME")

@@ -1,20 +1,19 @@
-from functools import wraps
+import datetime
 import getpass
 import logging
 import os
-from pathlib import Path
+import sys
 import tempfile
+import time
+from functools import wraps
+from pathlib import Path
 from typing import Any, Dict, List, Union
 from zipfile import ZipFile
-import datetime
-import time
-import sys
-
-import dateutil.parser
 
 import click
+import dateutil.parser
 import keyring
-from git import Repo, Blob, Tree
+from git import Blob, Repo, Tree
 from git.config import cp
 
 from sharelatex import (
@@ -22,8 +21,8 @@ from sharelatex import (
     SyncClient,
     get_authenticator_class,
     set_logger,
-    walk_project_data,
     walk_folders,
+    walk_project_data,
 )
 
 URL_MALFORMED_ERROR_MESSAGE = "projet_url is not well formed or missing"

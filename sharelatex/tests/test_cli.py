@@ -1,23 +1,20 @@
-from contextlib import contextmanager
-
-from git import Repo
 import logging
 import os
-from subprocess import check_call
+import queue
+import shlex
 import tempfile
 import unittest
-import shlex
+from contextlib import contextmanager
 from pathlib import Path
-import queue
-from click.testing import CliRunner
-from sharelatex import SyncClient, walk_project_data, get_authenticator_class
-from sharelatex.cli import (
-    MESSAGE_REPO_ISNT_CLEAN,
-    cli as cli_cli,
-    URL_MALFORMED_ERROR_MESSAGE,
-)
+from subprocess import check_call
 
-from ddt import ddt, data, unpack
+from click.testing import CliRunner
+from ddt import data, ddt, unpack
+from git import Repo
+
+from sharelatex import SyncClient, get_authenticator_class, walk_project_data
+from sharelatex.cli import MESSAGE_REPO_ISNT_CLEAN, URL_MALFORMED_ERROR_MESSAGE
+from sharelatex.cli import cli as cli_cli
 
 logging.basicConfig(level=logging.DEBUG)
 
