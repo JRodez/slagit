@@ -1,21 +1,23 @@
 import inspect
 import os
 import time
+import typing
 
 from locust import User, events, task
 
 # inspired from https://github.com/gtato/sharelatex-loadgenerator
-from sharelatex import IrisaAuthenticator, SyncClient
+from sharelatex import GitlabAuthenticator, SyncClient
 
-BASE_URL = os.environ.get("CI_BASE_URL")
-USERNAME = os.environ.get("CI_USERNAME")
-PASSWORD = os.environ.get("CI_PASSWORD")
-AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
+BASE_URL = typing.cast(str, os.environ.get("CI_BASE_URL"))
+USERNAME = typing.cast(str, os.environ.get("CI_USERNAME"))
+PASSWORD = typing.cast(str, os.environ.get("CI_PASSWORD"))
+AUTH_TYPE = typing.cast(str, os.environ.get("CI_AUTH_TYPE"))
 
 
 class LocustClient(SyncClient):
-    def __init__(self):
-        authenticator = IrisaAuthenticator(
+    def __init__(self) -> None:
+        authenticator = GitlabAuthenticator()
+        authenticator.authenticate(
             base_url=BASE_URL, username=USERNAME, password=PASSWORD, verify=False
         )
         super().__init__(
@@ -26,7 +28,7 @@ class LocustClient(SyncClient):
             authenticator=authenticator,
         )
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> typing.Any:
         """Override client methods
 
         From
@@ -42,7 +44,7 @@ class LocustClient(SyncClient):
         attr = super().__getattribute__(name)
         if inspect.ismethod(attr):
 
-            def wrapper(*args, **kwargs):
+            def _wrapper(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
                 start_time = time.time()
                 result = None
                 try:
@@ -65,7 +67,7 @@ class LocustClient(SyncClient):
                     )
                 return result
 
-            return wrapper
+            return _wrapper
         else:
             return attr
 
@@ -74,7 +76,7 @@ class WebsiteUser(User):
     min_wait = 5000
     max_wait = 10000
 
-    def __init__(self, environment):
+    def __init__(self, environment: typing.Any) -> None:
         super().__init__(environment)
         try:
             self.client = LocustClient()
@@ -84,7 +86,7 @@ class WebsiteUser(User):
             )
 
     @task(1)
-    def compile(self):
+    def compile(self) -> None:
         project = self.client.new("from_locust")
         try:
             self.client.compile(project["project_id"])

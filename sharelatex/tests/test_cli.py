@@ -8,6 +8,8 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from subprocess import check_call
+from typing import Any, Callable, Generator, Optional
+from typing import cast as typing_cast
 
 from click.testing import CliRunner
 from ddt import data, ddt, unpack
@@ -24,10 +26,10 @@ from sharelatex.cli import cli as cli_cli
 logging.basicConfig(level=logging.DEBUG)
 
 
-BASE_URL = os.environ.get("CI_BASE_URL")
-USERNAMES = os.environ.get("CI_USERNAMES")
-PASSWORDS = os.environ.get("CI_PASSWORDS")
-AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
+BASE_URL = typing_cast(str, os.environ.get("CI_BASE_URL"))
+USERNAMES = typing_cast(str, os.environ.get("CI_USERNAMES"))
+PASSWORDS = typing_cast(str, os.environ.get("CI_PASSWORDS"))
+AUTH_TYPE = typing_cast(str, os.environ.get("CI_AUTH_TYPE"))
 
 # Operate with a list of users
 # This workarounds the rate limitation on the API if enough usernames and
@@ -35,82 +37,106 @@ AUTH_TYPE = os.environ.get("CI_AUTH_TYPE")
 # queue and put it back at the end An alternative would be to define a smoke
 # user in the settings settings.smokeTest = True, settings.smokeTest.UserId
 
-CREDS = queue.Queue()
+CREDS: queue.Queue = queue.Queue()
 for username, password in zip(USERNAMES.split(","), PASSWORDS.split(",")):
     CREDS.put((username, password))
 
 
-def log(f):
-    def wrapped(*args, **kwargs):
+def log(f: Callable[[Any], Any]) -> Any:
+    """
+    log
+    """
+
+    def _wrapped(*args: Any, **kwargs: Any) -> Any:
         print("-" * 60)
         print(f"{f.__name__.upper():^60}")
         print("-" * 60)
         return f(*args, **kwargs)
 
-    return wrapped
+    return _wrapped
 
 
 class Project:
-    def __init__(self, client, project_id, fs_path, username, password, repo=None):
+    """
+    Project
+    """
+
+    def __init__(
+        self,
+        client: SyncClient,
+        project_id: str,
+        fs_path: str,
+        username: str,
+        password: str,
+        repo: Optional[Repo] = None,
+    ):
         self.client = client
         self.project_id = project_id
         self.fs_path = fs_path
-        self.repo = repo
+        self.repo: Repo = typing_cast(Repo, repo)
         self.url = f"{BASE_URL}/project/{project_id}"
         # keep track of who created the project
         self.username = username
         self.password = password
 
-    def get_doc_by_path(self, path):
+    def get_doc_by_path(self, c_path: str) -> str:
         """Doc only."""
-        path = Path(path)
+        path_as_path = Path(c_path)
 
-        def predicate(entity):
+        def _predicate(entity: Any) -> bool:
             return (
-                Path(entity["folder_path"]) == path.parent
-                and entity["name"] == path.name
+                Path(entity["folder_path"]) == path_as_path.parent
+                and entity["name"] == path_as_path.name
             )
 
         project_data = self.client.get_project_data(self.project_id)
-        files = walk_project_data(project_data, predicate=predicate)
+        files = walk_project_data(project_data, predicate=_predicate)
         myfile = next(files)
         content = self.client.get_document(self.project_id, myfile["_id"])
-        return content
+        return typing_cast(str, content)
 
-    def delete_object_by_path(self, path):
-        """File and  documents only"""
-        path = Path(path)
+    def delete_object_by_path(self, c_path: str) -> None:
+        """
+        File and  documents only
+        """
+        path_as_path = Path(c_path)
 
-        def predicate(entity):
+        def _predicate(entity: Any) -> bool:
             return (
-                Path(entity["folder_path"]) == path.parent
-                and entity["name"] == path.name
+                Path(entity["folder_path"]) == path_as_path.parent
+                and entity["name"] == path_as_path.name
             )
 
         project_data = self.client.get_project_data(self.project_id)
-        objects = walk_project_data(project_data, predicate=predicate)
+        objects = walk_project_data(project_data, predicate=_predicate)
         object = next(objects)
         if object["type"] == "doc":
             self.client.delete_document(self.project_id, object["_id"])
         if object["type"] == "file":
             self.client.delete_file(self.project_id, object["_id"])
 
-    def delete_folder_by_path(self, path):
-        path = Path(path)
+    def delete_folder_by_path(self, c_path: str) -> None:
+        """
+        Delete.
+        """
+        path_as_path = Path(c_path)
 
-        def predicate(entity):
-            return Path(entity["folder_path"]) == path and entity["name"] == "."
+        def _predicate(entity: Any) -> bool:
+            return Path(entity["folder_path"]) == path_as_path and entity["name"] == "."
 
         project_data = self.client.get_project_data(self.project_id)
-        objects = walk_project_data(project_data, predicate=predicate)
+        objects = walk_project_data(project_data, predicate=_predicate)
         object = next(objects)
         self.client.delete_folder(self.project_id, object["folder_id"])
 
 
 @contextmanager
 def project(
-    project_name, branch=None, sharelatex_git_branch: typing.Optional[str] = None
-):
+    project_name: str,
+    branch: Optional[str] = None,
+    sharelatex_git_branch: typing.Optional[str] = None,
+) -> Generator:
+
     """A convenient contextmanager to create a temporary project on sharelatex."""
 
     # First we create a client.
@@ -165,15 +191,18 @@ def project(
             client.delete(project_id, forever=True)
 
 
-def new_project(branch=None, sharelatex_git_branch: typing.Optional[str] = None):
-    def _new_project(f):
+def new_project(
+    branch: Optional[str] = None, sharelatex_git_branch: typing.Optional[str] = None
+) -> Callable[[Any], Any]:
+    def _new_project(f: Any) -> Any:
         """A convenient decorator to launch a function in the
         context of a new project."""
 
-        def wrapped(*args, **kwargs):
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
             with project(
                 f.__name__, branch=branch, sharelatex_git_branch=sharelatex_git_branch
-            ) as p:
+            ) as p:  # type: ignore
+
                 kwargs.update(project=p)
                 return f(*args, **kwargs)
 
@@ -191,31 +220,33 @@ class TestCli(unittest.TestCase):
         cls._RUNNER = CliRunner()
 
     @new_project()
-    def test_clone(self, project=None):
+    def test_clone(self, project: Project) -> None:
         pass
 
     @new_project(branch="main", sharelatex_git_branch="test-development")
-    def test_clone_other_branch_name(self, project=None):
+    def test_clone_other_branch_name(self, project: Project) -> None:
         branch_names = frozenset(b.name for b in project.repo.branches)
         self.assertIn("test-development", branch_names)
         self.assertIn("main", branch_names)
         self.assertNotIn(SYNC_BRANCH, branch_names)
 
     @new_project()
-    def test_clone_and_pull(self, project=None):
+    def test_clone_and_pull(self, project: Project) -> None:
         result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
         self.assertEqual(result.exit_code, 0)
 
     @data("--force", "")
     @new_project()
-    def test_clone_and_push(self, force, project=None):
+    def test_clone_and_push(self, force: str, project: Project) -> None:
         result = self._RUNNER.invoke(cli_cli, ["push", "-vvv"])
         self.assertEqual(result.exit_code, 0)
 
     @data("test_branch", None)
-    def test_clone_and_push_local_modification(self, branch):
+    def test_clone_and_push_local_modification(self, branch: str) -> None:
         @new_project(branch=branch)
-        def _test_clone_and_push_local_modification(project=None):
+        def _test_clone_and_push_local_modification(
+            project: Project,
+        ) -> None:
             """Local modification on main.tex"""
             check_call("echo test > main.tex", shell=True)
             project.repo.git.add(".")
@@ -235,9 +266,13 @@ class TestCli(unittest.TestCase):
         ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
     )
     @unpack
-    def test_clone_and_push_local_addition(self, force, branch):
+    def test_clone_and_push_local_addition(
+        self, force: str, branch: Optional[str]
+    ) -> None:
         @new_project(branch=branch)
-        def _test_clone_and_push_local_addition(project=None):
+        def _test_clone_and_push_local_addition(
+            project: Project,
+        ) -> None:
             """Addition of a local file"""
             check_call("echo test > main2.tex", shell=True)
             """Addition of a local file with utf-8 chars"""
@@ -261,9 +296,11 @@ class TestCli(unittest.TestCase):
         _test_clone_and_push_local_addition()
 
     @data("test_branch", None)
-    def test_clone_and_pull_remote_addition(self, branch):
+    def test_clone_and_pull_remote_addition(self, branch: str) -> None:
         @new_project(branch=branch)
-        def _test_clone_and_pull_remote_addition(project=None):
+        def _test_clone_and_pull_remote_addition(
+            project: Project,
+        ) -> None:
             """Addition of a remote document and a remote file"""
             check_call("mkdir -p test", shell=True)
             check_call("echo test > test/test.tex", shell=True)
@@ -308,9 +345,13 @@ class TestCli(unittest.TestCase):
         ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
     )
     @unpack
-    def test_clone_and_push_local_deletion(self, force, branch):
+    def test_clone_and_push_local_deletion(
+        self, force: str, branch: Optional[str]
+    ) -> None:
         @new_project(branch=branch)
-        def _test_clone_and_push_local_deletion(project=None):
+        def _test_clone_and_push_local_deletion(
+            project: Project,
+        ) -> None:
             """Deletion of a local file"""
             check_call("rm main.tex", shell=True)
             project.repo.git.add(".")
@@ -328,18 +369,22 @@ class TestCli(unittest.TestCase):
         ["--force", None], ["--force", "test_branch"], ["", None], ["", "test_branch"]
     )
     @unpack
-    def test_clone_and_pull_remote_deletion(self, force, branch):
+    def test_clone_and_pull_remote_deletion(
+        self, force: str, branch: Optional[str]
+    ) -> None:
         @new_project(branch=branch)
-        def _test_clone_and_pull_remote_deletion(project=None, path="."):
+        def _test_clone_and_pull_remote_deletion(
+            project: Project, c_path: str = "."
+        ) -> None:
             """Deletion of remote path"""
-            project.delete_object_by_path(path)
+            project.delete_object_by_path(c_path)
             result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
             self.assertEqual(result.exit_code, 0)
             # TODO: we could check the diff
-            self.assertFalse(os.path.exists(path))
+            self.assertFalse(os.path.exists(c_path))
 
-        _test_clone_and_pull_remote_deletion(path="./universe.jpg")
-        _test_clone_and_pull_remote_deletion(path="./references.bib")
+        _test_clone_and_pull_remote_deletion(c_path="./universe.jpg")
+        _test_clone_and_pull_remote_deletion(c_path="./references.bib")
 
     @data(
         [
@@ -348,37 +393,41 @@ class TestCli(unittest.TestCase):
         ]  # , ["--force", "test_branch"], ["", None], ["", "test_branch"]
     )
     @unpack
-    def test_clone_and_pull_remote_folder_deletion(self, force, branch):
+    def test_clone_and_pull_remote_folder_deletion(
+        self, force: str, branch: Optional[str]
+    ) -> None:
         @new_project(branch=branch)
-        def _test_clone_and_pull_remote_folder_deletion(project=None, path="."):
-            path = Path(path)
-            file_test_path = path.joinpath("test.tex")
+        def _test_clone_and_pull_remote_folder_deletion(
+            project: Project, c_path: str = "."
+        ) -> None:
+            path_as_path = Path(c_path)
+            file_test_path = path_as_path.joinpath("test.tex")
             """Addition of a remote file."""
-            check_call(f"mkdir -p {path}", shell=True)
+            check_call(f"mkdir -p {path_as_path}", shell=True)
             check_call(f"echo test > {file_test_path}", shell=True)
             # create the file on the remote copy
             client = project.client
             project_id = project.project_id
             project_data = client.get_project_data(project_id)
-            folder_id = client.check_or_create_folder(project_data, path)
-            client.upload_file(project_id, folder_id, file_test_path)
-            check_call(f"rm -rf {path}", shell=True)
+            folder_id = client.check_or_create_folder(project_data, str(path_as_path))
+            client.upload_file(project_id, folder_id, str(file_test_path))
+            check_call(f"rm -rf {path_as_path}", shell=True)
             # update local project copy
             result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
             self.assertEqual(result.exit_code, 0)
-            self.assertTrue(path.exists())
+            self.assertTrue(path_as_path.exists())
             self.assertTrue(file_test_path.exists())
             """Deletion of remote path"""
-            project.delete_folder_by_path(path)
+            project.delete_folder_by_path(str(path_as_path))
             result = self._RUNNER.invoke(cli_cli, ["pull", "-vvv"])
             self.assertEqual(result.exit_code, 0)
             # TODO: we could check the diff
-            self.assertFalse(os.path.exists(path))
+            self.assertFalse(os.path.exists(path_as_path))
 
-        _test_clone_and_pull_remote_folder_deletion(path="./test_dir")
+        _test_clone_and_pull_remote_folder_deletion(c_path="./test_dir")
 
     @new_project(branch="main")
-    def test_clone_and_pull_addgitignore(self, project=None):
+    def test_clone_and_pull_addgitignore(self, project: Project) -> None:
         path = Path(project.fs_path)
 
         gitignore = path / ".gitignore"
@@ -401,7 +450,7 @@ class TestCli(unittest.TestCase):
         self.assertTrue(pdf.exists(), "gitignored file mustn't be deleted")
 
     @new_project(branch="main")
-    def test_local_repo_must_be_clean(self, project=None):
+    def test_local_repo_must_be_clean(self, project: Project) -> None:
         path = Path(project.fs_path)
 
         untracked = path / "untracked"
@@ -432,14 +481,14 @@ class TestCli(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         self.assertIn(MESSAGE_REPO_ISNT_CLEAN, result.stdout)
 
-    def test_clone_malformed_project_URL(self):
+    def test_clone_malformed_project_URL(self) -> None:
         """try clone with malformed project URL"""
         result = self._RUNNER.invoke(cli_cli, ["clone", "not_a_PROJET_URL", "-vvv"])
         self.assertEqual(result.exit_code, 1)
         self.assertIn(URL_MALFORMED_ERROR_MESSAGE, str(result.exception))
 
     @new_project()
-    def test_new(self, project):
+    def test_new(self, project: Project) -> None:
         username = project.username
         password = project.password
         result = self._RUNNER.invoke(
@@ -461,13 +510,13 @@ class TestCli(unittest.TestCase):
 
 class TestLib(unittest.TestCase):
     @new_project()
-    def test_copy(self, project=None):
+    def test_copy(self, project: Project) -> None:
         client = project.client
         response = client.clone(project.project_id, "cloned_project")
         client.delete(response["project_id"], forever=True)
 
     @new_project()
-    def test_update_project_settings(self, project=None):
+    def test_update_project_settings(self, project: Project) -> None:
         client = project.client
         _ = client.update_project_settings(project.project_id, name="RENAMED")
         project_data = client.get_project_data(project.project_id)
