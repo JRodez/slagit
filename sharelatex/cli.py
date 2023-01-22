@@ -7,23 +7,41 @@ import tempfile
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import (
+    AbstractSet,
+    Any,
+    Callable,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 from zipfile import ZipFile
 
 import click
 import dateutil.parser
 import keyring
-from git import Blob, Repo, Tree
+from git import Repo
 from git.config import cp
 
 from sharelatex import (
     AUTH_DICT,
+    ProjectData,
     SyncClient,
+    UpdateDatum,
     get_authenticator_class,
     set_logger,
     walk_folders,
     walk_project_data,
 )
+
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict  # type: ignore
 
 URL_MALFORMED_ERROR_MESSAGE = "projet_url is not well formed or missing"
 
@@ -35,48 +53,75 @@ logger.addHandler(handler)
 set_logger(logger)
 
 
+class RemoteItem(TypedDict):
+    """
+    Remote items.
+    """
+
+    type: str
+    folder_path: str
+    name: str
+    _id: str
+    created: str
+
+
 class SharelatexError(Exception):
+    """
+    ShareLaTeX error.
+    """
+
     def info(self) -> str:
+        """
+        Info.
+        """
         return ""
 
 
 class RepoNotCleanError(SharelatexError):
+    """
+    The repo is not clean.
+    """
+
     def info(self) -> str:
-        # the constant is used to check the error in the test
-        # a better version would be to give the list of files explicitly here
-        # for now we print the output of `git status` just before raising
-        # this exception.
+        """
+        the constant is used to check the error in the test
+        a better version would be to give the list of files explicitly here
+        for now we print the output of `git status` just before raising
+        this exception.
+        """
         return (
             f"\n---\n{MESSAGE_REPO_ISNT_CLEAN}. "
             "There mustn't be any untracked/uncommitted files here."
         )
 
 
-def set_log_level(verbose=0):
+def set_log_level(verbose: int = 0) -> None:
     """set log level from integer value"""
-    LOG_LEVELS = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
-    logger.setLevel(LOG_LEVELS[verbose])
+    log_levels = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
+    logger.setLevel(log_levels[verbose])
 
 
 SLATEX_SECTION = "slatex"
 SYNC_BRANCH = "__remote__sharelatex__"
 
 
-def _commit_message(action):
-    COMMIT_MESSAGE_BASE = "python-sharelatex "
-    return COMMIT_MESSAGE_BASE + action
+def _commit_message(action: str) -> str:
+    commit_message_base = "python-sharelatex "
+    return commit_message_base + action
 
 
-COMMIT_MESSAGE_PUSH = _commit_message("push")
-COMMIT_MESSAGE_CLONE = _commit_message("clone")
-COMMIT_MESSAGE_PREPULL = _commit_message("pre pull")
-COMMIT_MESSAGE_UPLOAD = _commit_message("upload")
-COMMIT_MESSAGES = [
-    COMMIT_MESSAGE_PUSH,
-    COMMIT_MESSAGE_CLONE,
-    COMMIT_MESSAGE_PREPULL,
-    COMMIT_MESSAGE_UPLOAD,
-]
+COMMIT_MESSAGE_PUSH: str = _commit_message("push")
+COMMIT_MESSAGE_CLONE: str = _commit_message("clone")
+COMMIT_MESSAGE_PREPULL: str = _commit_message("pre pull")
+COMMIT_MESSAGE_UPLOAD: str = _commit_message("upload")
+COMMIT_MESSAGES: AbstractSet[str] = frozenset(
+    [
+        COMMIT_MESSAGE_PUSH,
+        COMMIT_MESSAGE_CLONE,
+        COMMIT_MESSAGE_PREPULL,
+        COMMIT_MESSAGE_UPLOAD,
+    ]
+)
 
 MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean"
 
@@ -95,9 +140,15 @@ class RateLimiter:
     of time if necessary"""
 
     def event_inc_passthrough(self) -> None:
+        """
+        event_inc_passthrough
+        """
         self.n_events += 1
 
     def event_inc(self, wait_interval: float = 0.1) -> None:
+        """
+        event_inc
+        """
         t1 = time.time()
         self.n_events += 1
         while self.n_events / (t1 - self.t0) > self.max_rate:
@@ -108,27 +159,44 @@ class RateLimiter:
         self.max_rate = max_rate
         self.n_events = 0
         self.t0 = time.time()
-        if self.max_rate <= 0.0:
-            self.event_inc = self.event_inc_passthrough
+
+        # if self.max_rate <= 0.0:
+        #     # TODO: PS -> Is this correct? Assigning method to method?
+        #     self.event_inc = self.event_inc_passthrough
 
 
 class Config:
     """Handle gitconfig read/write operations in a transparent way."""
 
-    def __init__(self, repo):
+    def __init__(self, repo: Repo):
         self.repo = repo
         self.keyring = keyring.get_keyring()
 
-    def get_password(self, service, username):
-        return self.keyring.get_password(service, username)
+    def get_password(self, service: str, username: str) -> Optional[str]:
+        """
+        get_password
+        """
+        return cast(Optional[str], self.keyring.get_password(service, username))
 
-    def set_password(self, service, username, password):
+    def set_password(self, service: str, username: str, password: str) -> None:
+        """
+        set_password
+        """
         self.keyring.set_password(service, username, password)
 
-    def delete_password(self, service, username):
+    def delete_password(self, service: str, username: str) -> None:
+        """
+        delete_password
+        """
         self.keyring.delete_password(service, username)
 
-    def set_value(self, section, key, value, config_level="repository"):
+    def set_value(
+        self,
+        section: str,
+        key: str,
+        value: Union[str, bool],
+        config_level: str = "repository",
+    ) -> None:
         """Set a config value in a specific section.
 
         Note:
@@ -151,7 +219,13 @@ class Config:
             finally:
                 c.release()
 
-    def get_value(self, section, key, default=None, config_level=None):
+    def get_value(
+        self,
+        section: str,
+        key: str,
+        default: Optional[str] = None,
+        config_level: Optional[str] = None,
+    ) -> Union[int, str, float]:
         """Get a config value in a specific section of the config.
 
                 Note: this returns the associated value if found.
@@ -178,10 +252,10 @@ class Config:
             except Exception as e:
                 raise e
             finally:
-                return value
+                return value  # type: ignore
 
 
-def get_clean_repo(path=None):
+def get_clean_repo(path: Optional[Path] = None) -> Repo:
     """Create the git.repo object from a directory.
 
     Note:
@@ -208,8 +282,11 @@ def get_clean_repo(path=None):
 
 
 def refresh_project_information(
-    repo, base_url=None, project_id=None, https_cert_check=None
-):
+    repo: Repo,
+    base_url: Optional[str] = None,
+    project_id: Optional[str] = None,
+    https_cert_check: Optional[bool] = None,
+) -> Tuple[str, str, bool]:
     """Get and/or set the project information in/from the git config.
 
     If the information is set in the config it is retrieved, otherwise it is set.
@@ -218,7 +295,7 @@ def refresh_project_information(
         repo (git.Repo): The repo object to read the config from
         base_url (str): the base_url to consider
         project_id (str): the project_id to consider
-
+        https_cert_check (bool): Check the cert.
     Returns:
         tuple (base_url, project_id) after the refresh occurs.
     """
@@ -226,7 +303,7 @@ def refresh_project_information(
     if base_url is None:
         u = config.get_value(SLATEX_SECTION, "baseUrl")
         if u is not None:
-            base_url = u
+            base_url = cast(str, u)
         else:
             base_url = input(PROMPT_BASE_URL)
             config.set_value(SLATEX_SECTION, "baseUrl", base_url)
@@ -235,14 +312,14 @@ def refresh_project_information(
     if project_id is None:
         p = config.get_value(SLATEX_SECTION, "projectId")
         if p is not None:
-            project_id = p
+            project_id = cast(str, p)
         else:
             project_id = input(PROMPT_PROJECT_ID)
         config.set_value(SLATEX_SECTION, "projectId", project_id)
     else:
         config.set_value(SLATEX_SECTION, "projectId", project_id)
     if https_cert_check is None:
-        c = config.get_value(SLATEX_SECTION, "httpsCertCheck")
+        c = cast(bool, config.get_value(SLATEX_SECTION, "httpsCertCheck"))
         if c is not None:
             https_cert_check = c
         else:
@@ -251,17 +328,21 @@ def refresh_project_information(
     else:
         config.set_value(SLATEX_SECTION, "httpsCertCheck", https_cert_check)
 
-    return base_url, project_id, https_cert_check
+    return (
+        base_url,
+        project_id,
+        https_cert_check,
+    )
 
 
 def refresh_account_information(
-    repo,
-    auth_type,
-    username=None,
-    password=None,
-    save_password=None,
-    ignore_saved_user_info=False,
-):
+    repo: Repo,
+    auth_type: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    save_password: Optional[bool] = None,
+    ignore_saved_user_info: Optional[bool] = False,
+) -> Tuple[str, str, str]:
     """Get and/or set the account information in/from the git config.
 
     If the information is set in the config it is retrieved, otherwise it is set.
@@ -273,7 +354,7 @@ def refresh_account_information(
         password (str): The password to consider
         save_password (boolean): True for save user account information (in OS
                                  keyring system) if needed
-        ignore_saved_user (boolean): True for ignore user account information (in
+        ignore_saved_user_info (boolean): True for ignore user account information (in
                                  OS keyring system) if present
     Returns:
         tuple (login_path, username, password) after the refresh occurs.
@@ -294,7 +375,7 @@ def refresh_account_information(
 
     if username is None:
         if not ignore_saved_user_info:
-            u = config.get_value(SLATEX_SECTION, "username")
+            u = cast(str, config.get_value(SLATEX_SECTION, "username"))
             if u:
                 username = u
     if username is None:
@@ -303,7 +384,7 @@ def refresh_account_information(
 
     if password is None:
         if not ignore_saved_user_info:
-            p = config.get_password(base_url, username)
+            p = config.get_password(base_url, username)  # type: ignore
             if p:
                 password = p
     if password is None:
@@ -313,19 +394,19 @@ def refresh_account_information(
             if r == "Y" or r == "y":
                 save_password = True
     if save_password:
-        config.set_password(base_url, username, password)
+        config.set_password(base_url, username, password)  # type: ignore
     return auth_type, username, password
 
 
 def getClient(
-    repo,
-    base_url,
-    auth_type,
-    username,
-    password,
-    verify,
-    save_password=None,
-):
+    repo: Repo,
+    base_url: str,
+    auth_type: str,
+    username: str,
+    password: str,
+    verify: bool,
+    save_password: Optional[bool] = None,
+) -> SyncClient:
     logger.info(f"try to open session on {base_url} with {username}")
     client = None
 
@@ -353,7 +434,9 @@ def getClient(
     return client
 
 
-def update_ref(repo, message="update_ref", git_branch: str = SYNC_BRANCH) -> None:
+def update_ref(
+    repo: Repo, message: str = "update_ref", git_branch: str = SYNC_BRANCH
+) -> None:
     """Makes the remote pointer to point on the latest revision we have.
 
     This is called after a successful clone, push, new. In short when we
@@ -368,15 +451,22 @@ def update_ref(repo, message="update_ref", git_branch: str = SYNC_BRANCH) -> Non
     sync_branch.commit = "HEAD"
 
 
-def handle_exception(*exceptions: SharelatexError):
+def handle_exception(*exceptions: Type[SharelatexError]) -> Callable:
     """Decorator to handle the cli exceptions.
 
     Decorated
     """
 
-    def wrapper(f):
+    def wrapper(f: Any) -> Callable:
+        """
+        Wrapper.
+        """
+
         @wraps(f)
-        def inner(*args, **kwargs):
+        def inner(*args: Any, **kwargs: Any) -> Any:
+            """
+            inner.
+            """
             try:
                 r = f(*args, **kwargs)
             except exceptions as e:
@@ -390,7 +480,7 @@ def handle_exception(*exceptions: SharelatexError):
 
 
 @click.group()
-def cli():
+def cli() -> None:
     pass
 
 
@@ -403,7 +493,10 @@ _GIT_BRANCH_OPTION = click.option(
 )
 
 
-def log_options(function):
+def log_options(function: Callable) -> Callable:
+    """
+    The log options.
+    """
     function = click.option(
         "-v",
         "--verbose",
@@ -416,13 +509,16 @@ def log_options(function):
     return function
 
 
-def authentication_options(function):
+def authentication_options(function: Callable) -> Callable:
+    """
+    authentication_options
+    """
     function = click.option(
         "--auth_type",
         "-a",
         default=None,
         help="""Authentication type.""",
-        type=click.Choice(AUTH_DICT.keys()),
+        type=click.Choice(list(AUTH_DICT.keys())),
     )(function)
 
     function = click.option(
@@ -455,7 +551,7 @@ def authentication_options(function):
 
 @cli.command(help="test log levels")
 @log_options
-def test(verbose):
+def test(verbose: int) -> None:
     set_log_level(verbose)
     logger.debug("debug")
     logger.info("info")
@@ -465,8 +561,10 @@ def test(verbose):
 
 
 def _sync_deleted_items(
-    working_path: Path, remote_items: Dict[Any, Any], objects: List[Union[Blob, Tree]]
-):
+    working_path: Path,
+    remote_items: Sequence[RemoteItem],
+    objects: Sequence[Path],
+) -> None:
     remote_path = [Path(fd["folder_path"]).joinpath(fd["name"]) for fd in remote_items]
     for blob_path in objects:
         p_relative = blob_path.relative_to(working_path)
@@ -479,7 +577,9 @@ def _sync_deleted_items(
                 Path.unlink(blob_path)
 
 
-def _get_datetime_from_git(repo, branch, files, working_path):
+def _get_datetime_from_git(
+    repo: Repo, branch: str, files: Sequence[Path], working_path: Path
+) -> Mapping[str, datetime.datetime]:
     datetimes_dict = {}
     for p in files:
         commits = repo.iter_commits(branch)
@@ -498,7 +598,13 @@ def _get_datetime_from_git(repo, branch, files, working_path):
     return datetimes_dict
 
 
-def _sync_remote_files(client, project_id, working_path, remote_items, datetimes_dict):
+def _sync_remote_files(
+    client: SyncClient,
+    project_id: str,
+    working_path: Path,
+    remote_items: Sequence[RemoteItem],
+    datetimes_dict: Mapping[str, datetime.datetime],
+) -> None:
     remote_files = (item for item in remote_items if item["type"] == "file")
     # TODO: build the list of file to download and then write them in a second step
     logger.debug("check if remote files are newer that locals")
@@ -528,17 +634,23 @@ def _sync_remote_files(client, project_id, working_path, remote_items, datetimes
             remote_time = datetime.datetime.now(datetime.timezone.utc)
         if need_to_download:
             logger.info(f"download from server file to update {local_path}")
-            client.get_file(project_id, remote_file["_id"], dest_path=local_path)
+            client.get_file(project_id, remote_file["_id"], dest_path=str(local_path))
             # set local time for downloaded file to remote_time
             if local_path.is_file():
                 os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
 def _sync_remote_docs(
-    client, project_id, working_path, remote_items, update_data, datetimes_dict
-):
+    client: SyncClient,
+    project_id: str,
+    working_path: Path,
+    remote_items: Sequence[RemoteItem],
+    update_data: UpdateDatum,
+    datetimes_dict: Mapping[str, datetime.datetime],
+) -> None:
     remote_docs = (item for item in remote_items if item["type"] == "doc")
     logger.debug("check if remote documents are newer that locals")
+    remote_time = datetime.datetime.now(datetime.timezone.utc)
     for remote_doc in remote_docs:
         doc_id = remote_doc["_id"]
         need_to_download = False
@@ -577,13 +689,13 @@ def _sync_remote_docs(
             remote_time = datetime.datetime.now(datetime.timezone.utc)
         if need_to_download:
             logger.info(f"download from server file to update {local_path}")
-            client.get_document(project_id, doc_id, dest_path=local_path)
+            client.get_document(project_id, doc_id, dest_path=str(local_path))
             # Set local time for downloaded document to remote_time
             if local_path.is_file():
                 os.utime(local_path, (remote_time.timestamp(), remote_time.timestamp()))
 
 
-def _pull(repo, client, project_id, git_branch: str):
+def _pull(repo: Repo, client: SyncClient, project_id: str, git_branch: str) -> None:
     # attempt to "merge" the remote and the local working copy
 
     git = repo.git
@@ -592,10 +704,15 @@ def _pull(repo, client, project_id, git_branch: str):
     working_path = Path(repo.working_tree_dir)
     logger.debug("find last commit using remote server")
     # for optimization purpose
+    commit = None
     for commit in repo.iter_commits():
         if commit.message in COMMIT_MESSAGES:
             logger.debug(f"find this : {commit.message} -- {commit.hexsha}")
             break
+    if commit is None:
+        raise Exception(
+            "Could not find any commit with a commit message of " + str(COMMIT_MESSAGES)
+        )
     logger.debug(
         f"commit as reference for upload updates: {commit.message} -- {commit.hexsha}"
     )
@@ -664,19 +781,22 @@ def _pull(repo, client, project_id, git_branch: str):
     git.merge(git_branch)
 
 
-@cli.command(help="Compile the remote version of a project")
+@cli.command()
 @click.argument("project_id", default="")
 @authentication_options
 @log_options
 def compile(
-    project_id,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
-):
+    project_id: str,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    verbose: int,
+) -> None:
+    """
+    Compile the remote version of a project
+    """
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
@@ -697,7 +817,7 @@ def compile(
     logger.debug(response)
 
 
-@cli.command(help="Send a invitation to share (edit/view) a project")
+@cli.command()
 @click.argument("email", default="")
 @click.option("--project_id", default=None)
 @click.option(
@@ -708,16 +828,19 @@ def compile(
 @authentication_options
 @log_options
 def share(
-    project_id,
-    email,
-    can_edit,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
-):
+    project_id: str,
+    email: str,
+    can_edit: bool,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    verbose: int,
+) -> None:
+    """
+    Send an invitation to share (edit/view) a project
+    """
     set_log_level(verbose)
     repo = Repo()
     base_url, project_id, https_cert_check = refresh_project_information(
@@ -756,12 +879,12 @@ def share(
 @log_options
 @handle_exception(RepoNotCleanError)
 def pull(
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    verbose: int,
     git_branch: str,
 ) -> None:
     set_log_level(verbose)
@@ -784,27 +907,11 @@ def pull(
     _pull(repo, client, project_id, git_branch=git_branch)
 
 
-@cli.command(
-    help=f"""
-Get (clone) the files from sharelatex project URL and create a local git depot.
-
-The optional target directory will be created if it doesn't exist. The command
-fails if it already exists. Connection information can be saved in the local git
-config.
-
-It works as follow:
-
-    1. Download and unzip the remote project in the target directory\n
-    2. Initialize a fresh git repository\n
-    3. Create a new branch named ``{SYNC_BRANCH}`` respectively the passed name,
-    to keep track of the remote versions of the project.
-    This branch MUST NOT be updated manually!
-"""
-)
+@cli.command()
 @click.argument(
     "projet_url", default=""
 )  # , help="The project url (https://sharelatex.irisa.fr/1234567890)")
-@click.argument("directory", default="")  # , help="The target directory")
+@click.argument("directory", default="", type=click.Path(file_okay=False))
 @click.option(
     "--https-cert-check/--no-https-cert-check",
     default=True,
@@ -821,18 +928,32 @@ It works as follow:
 @log_options
 @handle_exception(RepoNotCleanError)
 def clone(
-    projet_url,
-    directory,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    https_cert_check,
-    whole_project_download,
-    verbose,
+    projet_url: str,
+    directory: str,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    https_cert_check: bool,
+    whole_project_download: bool,
+    verbose: int,
     git_branch: str,
 ) -> None:
+    f"""
+    Get (clone) the files from sharelatex project URL and create a local git depot.
+
+    The optional target directory will be created if it doesn't exist. The command
+    fails if it already exists. Connection information can be saved in the local git
+    config.
+
+    It works as follow:
+
+        1. Download and unzip the remote project in the target directory\n
+        2. Initialize a fresh git repository\n
+        3. Create an extra ``{SYNC_BRANCH}`` to keep track of the remote versions of
+           the project. This branch must not be updated manually.
+    """
     set_log_level(verbose)
     # TODO : robust parse regexp
     slashparts = projet_url.split("/")
@@ -841,13 +962,13 @@ def clone(
     if base_url == "":
         raise Exception(URL_MALFORMED_ERROR_MESSAGE)
     if directory == "":
-        directory = Path(os.getcwd())
-        directory = Path(directory, project_id)
+        directory_as_path = Path(os.getcwd())
+        directory_as_path = Path(directory_as_path, project_id)
     else:
-        directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=False)
+        directory_as_path = Path(directory)
+    directory_as_path.mkdir(parents=True, exist_ok=False)
 
-    repo = get_clean_repo(path=directory)
+    repo = get_clean_repo(path=directory_as_path)
 
     base_url, project_id, https_cert_check = refresh_project_information(
         repo, base_url, project_id, https_cert_check
@@ -869,10 +990,10 @@ def clone(
     except Exception as inst:
         import shutil
 
-        shutil.rmtree(directory)
+        shutil.rmtree(directory_as_path)
         raise inst
     if whole_project_download:
-        client.download_project(project_id, path=directory)
+        client.download_project(project_id, path=str(directory_as_path))
         update_ref(repo, message=COMMIT_MESSAGE_CLONE, git_branch=git_branch)
     else:
         update_ref(repo, message=COMMIT_MESSAGE_CLONE, git_branch=git_branch)
@@ -880,44 +1001,47 @@ def clone(
     # TODO(msimonin): add a decent default .gitignore ?
 
 
-def _upload(repo, client, project_data, path):
+def _upload(
+    repo: Repo, client: SyncClient, project_data: ProjectData, path: str
+) -> str:
     # initial factorisation effort
-    path = Path(path)
-    logger.debug(f"Uploading {path}")
+    path_as_path = Path(path)
+    logger.debug(f"Uploading {path_as_path}")
     project_id = project_data["_id"]
-    folder_id = client.check_or_create_folder(project_data, path.parent)
-    p = Path(repo.working_dir).joinpath(path)
+    folder_id = client.check_or_create_folder(project_data, str(path_as_path.parent))
+    p = Path(repo.working_dir).joinpath(path_as_path)
     client.upload_file(project_id, folder_id, str(p))
     return folder_id
 
 
 def _push(
-    force,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
+    force: bool,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    verbose: int,
     git_branch: str,
-):
+) -> None:
     set_log_level(verbose)
 
-    def _delete(client, project_data, path):
+    def _delete(c_client: SyncClient, c_project_data: ProjectData, path: str) -> None:
         # initial factorisation effort
-        path = Path(path)
-        logger.debug(f"Deleting {path}")
-        project_id = project_data["_id"]
+        path_as_path = Path(path)
+        logger.debug(f"Deleting {path_as_path}")
+        project_id = c_project_data["_id"]
         entities = walk_project_data(
-            project_data,
-            lambda x: Path(x["folder_path"]) == path.parent and x["name"] == path.name,
+            c_project_data,
+            lambda x: Path(x["folder_path"]) == path_as_path.parent
+            and x["name"] == path_as_path.name,  # noqa: W503
         )
         # there should be one
         entity = next(entities)
         if entity["type"] == "doc":
-            client.delete_document(project_id, entity["_id"])
+            c_client.delete_document(project_id, entity["_id"])
         elif entity["type"] == "file":
-            client.delete_file(project_id, entity["_id"])
+            c_client.delete_file(project_id, entity["_id"])
 
     repo = get_clean_repo()
     base_url, project_id, https_cert_check = refresh_project_information(repo)
@@ -986,31 +1110,33 @@ def _push(
         update_ref(repo, message=COMMIT_MESSAGE_PUSH, git_branch=git_branch)
 
 
-@cli.command(
-    help="""Synchronize the local copy with the remote version.
-
-This works as follow:
-
-1. The remote version is pulled (see the :program:`pull` command)\n
-2. After the merge succeed, the merged version is uploaded back to the remote server.\n
-   Note that only the files that have changed (modified/added/removed) will be uploaded.
-"""
-)
+@cli.command()
+@click.option("--force", is_flag=True, help="Force push", default=False)
 @_GIT_BRANCH_OPTION
 @click.option("--force", is_flag=True, help="Force push")
 @authentication_options
 @log_options
 @handle_exception(RepoNotCleanError)
 def push(
-    force,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
+    force: bool,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    verbose: int,
     git_branch: str,
-):
+) -> None:
+    """Synchronize the local copy with the remote version.
+
+    This works as follows:
+
+    1. The remote version is pulled (see the :program:`pull` command)\n
+    2. After the merge succeed, the merged version is uploaded back to the remote
+    server.\n
+       Note that only the files that have changed (modified/added/removed) will
+       be uploaded.
+    """
     _push(
         force,
         auth_type,
@@ -1023,13 +1149,7 @@ def push(
     )
 
 
-@cli.command(
-    help="""
-Upload the current directory as a new sharelatex project.
-
-This literally creates a new remote project in sync with the local version.
-"""
-)
+@cli.command()
 @click.argument("projectname")
 @click.argument("base_url")
 @click.option(
@@ -1055,19 +1175,24 @@ upload sequentially file by file to the server""",
 @log_options
 @handle_exception(RepoNotCleanError)
 def new(
-    projectname,
-    base_url,
-    https_cert_check,
-    whole_project_upload,
-    rate_max_uploads_by_sec,
-    auth_type,
-    username,
-    password,
-    save_password,
-    ignore_saved_user_info,
-    verbose,
+    projectname: str,
+    base_url: str,
+    https_cert_check: bool,
+    whole_project_upload: bool,
+    rate_max_uploads_by_sec: float,
+    auth_type: str,
+    username: Optional[str],
+    password: Optional[str],
+    save_password: Optional[bool],
+    ignore_saved_user_info: bool,
+    verbose: int,
     git_branch: str,
 ) -> None:
+    """
+    Upload the current directory as a new sharelatex project.
+
+    This literally creates a new remote project in sync with the local version.
+    """
     set_log_level(verbose)
     repo = get_clean_repo()
 

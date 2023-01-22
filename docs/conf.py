@@ -24,6 +24,7 @@
 # If your documentation needs a minimal Sphinx version, state it here.
 #
 # needs_sphinx = '1.0'
+import typing
 
 import pkg_resources
 
@@ -122,7 +123,7 @@ htmlhelp_basename = "sharelatexdoc"
 
 # -- Options for LaTeX output ---------------------------------------------
 
-latex_elements = {
+latex_elements: typing.Dict[str, typing.Any] = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',

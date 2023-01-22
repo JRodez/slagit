@@ -3,7 +3,7 @@ import datetime
 import os
 import shutil
 import zipfile
-from typing import Mapping
+from typing import Any, Mapping, Sequence
 
 import pymongo
 from bson.objectid import ObjectId
@@ -28,15 +28,15 @@ DB = client["sharelatex"]
 
 
 def _writeProjectFiles(
-    project,
-    destination_path="/tmp/",
-    user_file_path="/var/lib/sharelatex/data/user_files",
-):
+    project: Mapping[str, Any],
+    destination_path: str = "/tmp/",
+    user_file_path: str = "/var/lib/sharelatex/data/user_files",
+) -> None:
 
     projectPath = os.path.join(destination_path, project["name"])
     project_id = project["_id"]
 
-    def _writeFolders(folders, currentPath):
+    def _writeFolders(folders: Sequence[Mapping[str, Any]], currentPath: str) -> None:
         for folder in folders:
             newPath = os.path.join(currentPath, folder["name"])
             if not os.path.exists(newPath):
@@ -73,7 +73,7 @@ def _writeProjectFiles(
     _writeFolders(project["rootFolder"], projectPath)
 
 
-def getZipProject(project_uid, destination_path, user_file_path):
+def getZipProject(project_uid: str, destination_path: str, user_file_path: str) -> None:
     """Make a zip of a project given a project uid"""
     projectPath = os.path.join(destination_path, project_uid)
     if not os.path.exists(projectPath):
@@ -84,18 +84,20 @@ def getZipProject(project_uid, destination_path, user_file_path):
             os.makedirs(projectPath)
         _writeProjectFiles(project, projectPath, user_file_path)
 
-    def zipdir(path, zip_handle):
+    def _zipdir(path: str, zip_handle: zipfile.ZipFile) -> None:
         for root, dirs, files in os.walk(path):
             for file in files:
                 zip_handle.write(os.path.join(root, file))
 
     zipPath = os.path.join(destination_path, project_uid + ".zip")
     zip_handle = zipfile.ZipFile(zipPath, "w", zipfile.ZIP_DEFLATED)
-    zipdir(projectPath, zip_handle)
+    _zipdir(projectPath, zip_handle)
     zip_handle.close()
 
 
-def _get_projects_before_after(days: int, selector="$lt"):
+def _get_projects_before_after(
+    days: int, selector: str = "$lt"
+) -> Mapping[str, datetime.datetime]:
     """return a dict containing in keys the ids of the inactive projects
     since the number of day passed in parameter,
     and in value their lastUpdated date"""
@@ -140,7 +142,7 @@ def get_active_projects(days: int = 7) -> Mapping[str, datetime.datetime]:
     return _get_projects_before_after(days, selector="$gt")
 
 
-def get_project_collaborators(project_id):
+def get_project_collaborators(project_id: str) -> Any:
     """return a dict containing in keys the ids of the collaborators for
     the project of project_id id, and in values their mail adress"""
     project = DB["projects"].find({"_id": ObjectId(project_id)})
@@ -164,7 +166,7 @@ def getUserIdByEmail(address: str) -> ObjectId:
         return None
 
 
-def changeMailAddress(old_address, new_address):
+def changeMailAddress(old_address: str, new_address: str) -> Any:
     if DB.users.find_one({"email": old_address}):
         # new_address mustn't already be in DB
         if DB.users.find_one({"email": new_address}):
@@ -176,7 +178,7 @@ def changeMailAddress(old_address, new_address):
         raise NameError("OldAddressNotInDB")
 
 
-def changeProjectOwner(project_id, new_onwer_id):
+def changeProjectOwner(project_id: str, new_onwer_id: str) -> Any:
     project = DB["projects"].find_one({"_id": ObjectId(project_id)})
     if project:
         user = DB.users.find_one({"_id": ObjectId(new_onwer_id)})
