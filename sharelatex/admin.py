@@ -178,6 +178,12 @@ def changeMailAddress(old_address: str, new_address: str) -> Any:
         raise NameError("OldAddressNotInDB")
 
 
+def getProjectsIdsOwnedByUserId(owner_id: str) -> list:
+    return [
+        str(p["_id"]) for p in DB["projects"].find({"owner_ref": ObjectId(owner_id)})
+    ]
+
+
 def changeProjectOwner(project_id: str, new_onwer_id: str) -> Any:
     project = DB["projects"].find_one({"_id": ObjectId(project_id)})
     if project:
