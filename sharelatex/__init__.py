@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import pickle
@@ -745,6 +746,15 @@ class SyncClient:
 
     def _delete(self, url: str, *args: Any, **kwargs: Any) -> requests.Response:
         return self._request("DELETE", url, *args, **kwargs)
+
+    def get_projects_data(self) -> list:
+        """Get list of projects data.
+        Every element of return list is a dictionary of some data of a project
+        """
+        r = self._get(url=f"{self.base_url}/project/", verify=self.verify)
+        parsed = html.fromstring(r.content)
+        elements = parsed.xpath("//meta[@name='ol-projects']")
+        return list(json.loads(elements[0].get("content")))
 
     def get_project_update_data(self, project_id: str) -> UpdateDatum:
         """Get update (history) data of a project.
