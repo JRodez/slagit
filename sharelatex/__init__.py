@@ -1249,18 +1249,19 @@ class SyncClient:
         response = r.json()
         return response
 
-    def new(self, project_name: str) -> Any:
+    def new(self, project_name: str, template: str = "example") -> Any:
         """Create a new example project for the current user.
 
         Args:
             project_name (str): The project name of the project to create
+            template (str): template used for create the new project (default: example)
         """
         url = f"{self.base_url}/project/new"
 
         data = {
             "_csrf": self.login_data["_csrf"],
             "projectName": project_name,
-            "template": "example",
+            "template": template,
         }
         r = self._post(url, data=data, verify=self.verify)
         r.raise_for_status()
