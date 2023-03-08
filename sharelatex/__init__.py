@@ -272,7 +272,7 @@ def check_login_error(response: requests.Response) -> None:
         pass
 
 
-def get_csrf_Token(html_text: str) -> str:
+def get_csrf_Token(html_text: str) -> str | None:
     """Retrieve csrf token from a html text page from sharelatex server.
 
     Args:
@@ -290,7 +290,7 @@ def get_csrf_Token(html_text: str) -> str:
             meta = parsed.xpath("//meta[@name='ol-csrfToken']")
             if meta:
                 return typing_cast(str, meta[0].get("content"))
-    raise Exception(f"We could not find the CSRF in {html_text}")
+    return None
 
 
 class Authenticator:
@@ -375,7 +375,10 @@ class DefaultAuthenticator(Authenticator):
 
         r = self.session.get(self.login_url, verify=self.verify)
 
-        self.csrf = get_csrf_Token(r.text)
+        _csrf = get_csrf_Token(r.text)
+        if _csrf is None:
+            raise Exception(f"We could not find the CSRF in {self.login_url}")
+        self.csrf = _csrf
         self.login_data = dict(
             email=self.username,
             password=self.password,
@@ -385,7 +388,10 @@ class DefaultAuthenticator(Authenticator):
         _r = self.session.post(self.login_url, data=self.login_data, verify=self.verify)
         _r.raise_for_status()
         check_login_error(_r)
-        login_data = dict(email=self.username, _csrf=get_csrf_Token(_r.text))
+        _csrf = get_csrf_Token(_r.text)
+        if _csrf is None:
+            raise Exception(f"We could not find the CSRF in {self.login_url}")
+        login_data = dict(email=self.username, _csrf=_csrf)
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
 
 
@@ -421,7 +427,10 @@ class LegacyAuthenticator(DefaultAuthenticator):
         self.sid_name = sid_name
 
         r = self.session.get(self.login_url, verify=self.verify)
-        self.csrf = get_csrf_Token(r.text)
+        _csrf = get_csrf_Token(r.text)
+        if _csrf is None:
+            raise Exception(f"We could not find the CSRF in {self.login_url}")
+        self.csrf = _csrf
         self.login_data = dict(
             email=self.username,
             password=self.password,
@@ -489,8 +498,8 @@ class GitlabAuthenticator(DefaultAuthenticator):
             return self._authenticate(url, ldap_form, self._login_data_ldap)
         except Exception as e:
             logger.info(
-                f"Unable to authenticate with LDAP for {self.username}"
-                f"continuing with local account ({e})"
+                f"Unable to authenticate with LDAP for {self.username}, "
+                f"continuing with local account ( {e} )"
             )
 
         try:
@@ -498,7 +507,7 @@ class GitlabAuthenticator(DefaultAuthenticator):
             return self._authenticate(url, local_form, self._login_data_local)
         except Exception as e:
             logger.info(
-                f"Unable to authenticate with local account for {self.username},"
+                f"Unable to authenticate with local account for {self.username}, "
                 f"leaving ({e})"
             )
 
@@ -537,7 +546,8 @@ class GitlabAuthenticator(DefaultAuthenticator):
         _r.raise_for_status()
         check_login_error(_r)
         _csrf = get_csrf_Token(_r.text)
-        assert _csrf is not None
+        if _csrf is None:
+            raise Exception(f"We could not find the CSRF in {redirect_url}")
         logger.info("Logging successful")
         login_data = dict(email=self.username, _csrf=_csrf)
         return login_data, {self.sid_name: _r.cookies[self.sid_name]}
