@@ -1181,7 +1181,7 @@ upload sequentially file by file to the server""",
 )
 @click.option(
     "--rate-max-uploads-by-sec",
-    default=0.0,
+    default=0.4,
     help="""number of max uploads
  by seconds to the server (some servers limit the this rate),
  useful with --no-whole-project-upload""",
