@@ -399,7 +399,7 @@ def refresh_account_information(
     return auth_type, username, password
 
 
-def exitOnError(
+def exit_on_error(
     f: Callable[..., Any], msg: str, clean_up: Optional[Callable[[], None]] = None
 ) -> Any:
     def wrapped(*args: Any, **kwargs: Any) -> Any:
@@ -819,7 +819,7 @@ def compile(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
-    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
+    client = exit_on_error(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -865,7 +865,7 @@ def share(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
-    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
+    client = exit_on_error(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -911,7 +911,7 @@ def pull(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
-    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
+    client = exit_on_error(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -998,7 +998,7 @@ def clone(
 
         shutil.rmtree(directory_as_path)
 
-    client = exitOnError(getClient, AUTHENTICATION_FAILED, clean_up)(
+    client = exit_on_error(getClient, AUTHENTICATION_FAILED, clean_up)(
         repo,
         base_url,
         auth_type,
@@ -1065,7 +1065,7 @@ def _push(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
 
-    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
+    client = exit_on_error(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -1216,7 +1216,7 @@ def new(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, True
     )
-    client = getClient(
+    client = exit_on_error(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
