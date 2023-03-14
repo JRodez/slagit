@@ -272,7 +272,7 @@ def check_login_error(response: requests.Response) -> None:
         pass
 
 
-def get_csrf_Token(html_text: str) -> str | None:
+def get_csrf_Token(html_text: str) -> Optional[str]:
     """Retrieve csrf token from a html text page from sharelatex server.
 
     Args:
