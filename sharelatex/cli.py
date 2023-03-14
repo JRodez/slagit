@@ -430,7 +430,11 @@ def getClient(
                 ignore_saved_user_info=True,
             )
     if client is None:
-        raise Exception("maximum number of authentication attempts is reached")
+        logger.error(
+            f"Authentication failed after {MAX_NUMBER_ATTEMPTS} " "attempts, exiting."
+        )
+        sys.exit(1)
+
     return client
 
 
