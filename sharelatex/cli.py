@@ -44,6 +44,7 @@ except ImportError:
     from typing_extensions import TypedDict  # type: ignore
 
 URL_MALFORMED_ERROR_MESSAGE = "projet_url is not well formed or missing"
+AUTHENTICATION_FAILED = "Unable to authenticate, exiting"
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
@@ -396,6 +397,21 @@ def refresh_account_information(
     if save_password:
         config.set_password(base_url, username, password)  # type: ignore
     return auth_type, username, password
+
+
+def exitOnError(
+    f: Callable[..., Any], msg: str, clean_up: Optional[Callable[[], None]] = None
+) -> Any:
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return f(*args, **kwargs)
+        except Exception:
+            logger.error(msg)
+            if clean_up is not None:
+                clean_up()
+            sys.exit(1)
+
+    return wrapped
 
 
 def getClient(
@@ -803,7 +819,7 @@ def compile(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(
+    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -849,7 +865,7 @@ def share(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(
+    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -895,7 +911,7 @@ def pull(
     auth_type, username, password = refresh_account_information(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
-    client = getClient(
+    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
@@ -977,21 +993,21 @@ def clone(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
 
-    try:
-        client = getClient(
-            repo,
-            base_url,
-            auth_type,
-            username,
-            password,
-            https_cert_check,
-            save_password,
-        )
-    except Exception as inst:
+    def clean_up() -> None:
         import shutil
 
         shutil.rmtree(directory_as_path)
-        raise inst
+
+    client = exitOnError(getClient, AUTHENTICATION_FAILED, clean_up)(
+        repo,
+        base_url,
+        auth_type,
+        username,
+        password,
+        https_cert_check,
+        save_password,
+    )
+
     if whole_project_download:
         client.download_project(project_id, path=str(directory_as_path))
         update_ref(repo, message=COMMIT_MESSAGE_CLONE, git_branch=git_branch)
@@ -1049,7 +1065,7 @@ def _push(
         repo, auth_type, username, password, save_password, ignore_saved_user_info
     )
 
-    client = getClient(
+    client = exitOnError(getClient, AUTHENTICATION_FAILED)(
         repo,
         base_url,
         auth_type,
