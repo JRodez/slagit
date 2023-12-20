@@ -128,8 +128,8 @@ MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean"
 
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
-PROMPT_AUTH_TYPE = "Authentication type (*gitlab*|community|legacy): "
-DEFAULT_AUTH_TYPE = "gitlab"
+PROMPT_AUTH_TYPE = "Authentication type (legacy): "
+DEFAULT_AUTH_TYPE = "legacy"
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
@@ -363,15 +363,16 @@ def refresh_account_information(
 
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
-    if auth_type is None:
-        if not ignore_saved_user_info:
-            u = config.get_value(SLATEX_SECTION, "authType")
-            if u:
-                auth_type = u
-    if auth_type is None:
-        auth_type = input(PROMPT_AUTH_TYPE)
-        if not auth_type:
-            auth_type = DEFAULT_AUTH_TYPE
+    # if auth_type is None:
+    #     if not ignore_saved_user_info:
+    #         u = config.get_value(SLATEX_SECTION, "authType")
+    #         if u:
+    #             auth_type = u
+    # if auth_type is None:
+    #     auth_type = input(PROMPT_AUTH_TYPE)
+    #     if not auth_type:
+    #         auth_type = DEFAULT_AUTH_TYPE
+    auth_type = DEFAULT_AUTH_TYPE
     config.set_value(SLATEX_SECTION, "authType", auth_type)
 
     if username is None:

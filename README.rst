@@ -1,12 +1,16 @@
-Python-sharelatex is a library to interact with https://sharelatex.irisa.fr. It
+Fork of https://gitlab.inria.fr/sed-rennes/sharelatex/python-sharelatex.git
+
+Todo : nix package
+
+Python-sharelatex is a library to interact with sharelatex.irit.fr. It
 also includes a command line tools to sync your remote project with Git. This
 allows you to work offline on your project and later sync your local copy with
-the remote one.
+the remote one. 
 
 Links
 -----
 
-- Source: https://gitlab.inria.fr/sed-rennes/sharelatex
+- Source: https://github.com/JRodez/irit-sharelatex
 - Documentation: https://sed-rennes.gitlabpages.inria.fr/sharelatex/python-sharelatex
 - Mattermost: https://mattermost.irisa.fr/sed-rba/channels/sharelatex-users
 - Pypi: https://pypi.org/project/sharelatex/
@@ -21,23 +25,10 @@ Installation
 
 .. code:: bash
 
-    # Latest stable version
-    pip install sharelatex
+    git clone https://github.com/JRodez/irit-sharelatex.git
+    cd irit-sharelatex
+    pip install irit-sharelatex
 
-    # Development version
-    git clone https://gitlab.inria.fr/sed-rennes/sharelatex/python-sharelatex
-    cd python-sharelatex
-    pip install [-e] .
-
-Compatibility notes
--------------------
-
-The tool is targeting the community edition of ShareLatex/Overleaf and we are
-testing it on:
-
-- https://sharelatex.irisa.fr -- ``legacy`` authentication method
-- https://overleaf.irisa.fr -- ``gitlab`` authentication method
-- Overleaf CE (3.0.1) --  ``community`` authentication method
 
 
 Persistent sessions
