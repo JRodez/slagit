@@ -688,7 +688,7 @@ def _sync_remote_docs(
             updates = [
                 update["meta"]["end_ts"]
                 for update in update_data["updates"]
-                if doc_id in update["docs"]
+                if ("docs" not in update) or (doc_id in update["docs"]) 
             ]
             if len(updates) > 0:
                 remote_time = datetime.datetime.fromtimestamp(
