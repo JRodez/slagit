@@ -1,6 +1,6 @@
 import datetime
 import getpass
-import logging
+# import logging
 import os
 import sys
 import tempfile
@@ -26,7 +26,7 @@ import dateutil.parser
 import keyring
 from git import Repo
 from git.config import cp
-
+import json
 from sharelatex import (
     AUTH_DICT,
     ProjectData,
@@ -43,14 +43,16 @@ try:
 except ImportError:
     from typing_extensions import TypedDict  # type: ignore
 
+import ezpylog
+
 URL_MALFORMED_ERROR_MESSAGE = "projet_url is not well formed or missing"
 AUTHENTICATION_FAILED = "Unable to authenticate, exiting"
 
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-logger.setLevel(logging.INFO)
-logger.addHandler(handler)
-
+# logger = logging.getLogger(__name__)
+# handler = logging.StreamHandler()
+# logger.addHandler(handler)
+logger = ezpylog.Logger(__name__,compact = True,color_on_console = True)
+logger.set_level(ezpylog.LogLevel.INFO)
 set_logger(logger)
 
 
@@ -98,8 +100,8 @@ class RepoNotCleanError(SharelatexError):
 
 def set_log_level(verbose: int = 0) -> None:
     """set log level from integer value"""
-    log_levels = (logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG)
-    logger.setLevel(log_levels[verbose])
+    log_levels = (ezpylog.LogLevel.ERROR, ezpylog.LogLevel.WARNING, ezpylog.LogLevel.INFO, ezpylog.LogLevel.DEBUG)
+    logger.set_level(log_levels[verbose])
 
 
 SLATEX_SECTION = "slatex"
@@ -128,8 +130,8 @@ MESSAGE_REPO_ISNT_CLEAN = "The repo isn't clean"
 
 PROMPT_BASE_URL = "Base url: "
 PROMPT_PROJECT_ID = "Project id: "
-PROMPT_AUTH_TYPE = "Authentication type (legacy): "
-DEFAULT_AUTH_TYPE = "legacy"
+PROMPT_AUTH_TYPE = "Authentication type (*community*|legacy|gitlab): "
+DEFAULT_AUTH_TYPE = "community"
 PROMPT_USERNAME = "Username: "
 PROMPT_PASSWORD = "Password: "
 PROMPT_CONFIRM = "Do you want to save your password in your OS keyring system (y/n) ?"
@@ -363,16 +365,15 @@ def refresh_account_information(
 
     config = Config(repo)
     base_url = config.get_value(SLATEX_SECTION, "baseUrl")
-    # if auth_type is None:
-    #     if not ignore_saved_user_info:
-    #         u = config.get_value(SLATEX_SECTION, "authType")
-    #         if u:
-    #             auth_type = u
-    # if auth_type is None:
-    #     auth_type = input(PROMPT_AUTH_TYPE)
-    #     if not auth_type:
-    #         auth_type = DEFAULT_AUTH_TYPE
-    auth_type = DEFAULT_AUTH_TYPE
+    if auth_type is None:
+        if not ignore_saved_user_info:
+            u = config.get_value(SLATEX_SECTION, "authType")
+            if u:
+                auth_type = u
+    if auth_type is None:
+        auth_type = input(PROMPT_AUTH_TYPE)
+        if not auth_type:
+            auth_type = DEFAULT_AUTH_TYPE
     config.set_value(SLATEX_SECTION, "authType", auth_type)
 
     if username is None:
@@ -667,8 +668,14 @@ def _sync_remote_docs(
 ) -> None:
     remote_docs = (item for item in remote_items if item["type"] == "doc")
     logger.debug("check if remote documents are newer that locals")
+    logger.debug (f"update_data : {json.dumps(update_data, indent=2)}")
+    
+    
     remote_time = datetime.datetime.now(datetime.timezone.utc)
     for remote_doc in remote_docs:
+        logger.debug(f"check if remote document {remote_doc['name']} is newer that locals")
+        logger.debug(f"remote document is {remote_doc}")
+        
         doc_id = remote_doc["_id"]
         need_to_download = False
         local_path = working_path.joinpath(remote_doc["folder_path"]).joinpath(
@@ -686,9 +693,7 @@ def _sync_remote_docs(
                     local_path.stat().st_mtime, datetime.timezone.utc
                 )
             updates = [
-                update["meta"]["end_ts"]
-                for update in update_data["updates"]
-                if ("docs" not in update) or (doc_id in update["docs"]) 
+                update["meta"]["end_ts"] for update in update_data["updates"] if ("docs" not in update) or (doc_id in update["docs"]) 
             ]
             if len(updates) > 0:
                 remote_time = datetime.datetime.fromtimestamp(
