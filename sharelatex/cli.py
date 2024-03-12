@@ -984,6 +984,7 @@ def clone(
     if base_url == "":
         raise Exception(URL_MALFORMED_ERROR_MESSAGE)
     if directory == "":
+        logger.warning(f"No directory specified, using '{project_id}' as directory")
         directory_as_path = Path(os.getcwd())
         directory_as_path = Path(directory_as_path, project_id)
     else:
