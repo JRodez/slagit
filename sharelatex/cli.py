@@ -104,7 +104,7 @@ def set_log_level(verbose: int = 0) -> None:
     logger.set_level(log_levels[verbose])
 
 
-SLATEX_SECTION = "slatex"
+SLAGIT_SECTION = "slagit"
 SYNC_BRANCH = "__remote__sharelatex__"
 
 
@@ -304,32 +304,32 @@ def refresh_project_information(
     """
     config = Config(repo)
     if base_url is None:
-        u = config.get_value(SLATEX_SECTION, "baseUrl")
+        u = config.get_value(SLAGIT_SECTION, "baseUrl")
         if u is not None:
             base_url = cast(str, u)
         else:
             base_url = input(PROMPT_BASE_URL)
-            config.set_value(SLATEX_SECTION, "baseUrl", base_url)
+            config.set_value(SLAGIT_SECTION, "baseUrl", base_url)
     else:
-        config.set_value(SLATEX_SECTION, "baseUrl", base_url)
+        config.set_value(SLAGIT_SECTION, "baseUrl", base_url)
     if project_id is None:
-        p = config.get_value(SLATEX_SECTION, "projectId")
+        p = config.get_value(SLAGIT_SECTION, "projectId")
         if p is not None:
             project_id = cast(str, p)
         else:
             project_id = input(PROMPT_PROJECT_ID)
-        config.set_value(SLATEX_SECTION, "projectId", project_id)
+        config.set_value(SLAGIT_SECTION, "projectId", project_id)
     else:
-        config.set_value(SLATEX_SECTION, "projectId", project_id)
+        config.set_value(SLAGIT_SECTION, "projectId", project_id)
     if https_cert_check is None:
-        c = cast(bool, config.get_value(SLATEX_SECTION, "httpsCertCheck"))
+        c = cast(bool, config.get_value(SLAGIT_SECTION, "httpsCertCheck"))
         if c is not None:
             https_cert_check = c
         else:
             https_cert_check = True
-            config.set_value(SLATEX_SECTION, "httpsCertCheck", https_cert_check)
+            config.set_value(SLAGIT_SECTION, "httpsCertCheck", https_cert_check)
     else:
-        config.set_value(SLATEX_SECTION, "httpsCertCheck", https_cert_check)
+        config.set_value(SLAGIT_SECTION, "httpsCertCheck", https_cert_check)
 
     return (
         base_url,
@@ -364,26 +364,26 @@ def refresh_account_information(
     """
 
     config = Config(repo)
-    base_url = config.get_value(SLATEX_SECTION, "baseUrl")
+    base_url = config.get_value(SLAGIT_SECTION, "baseUrl")
     if auth_type is None:
         if not ignore_saved_user_info:
-            u = config.get_value(SLATEX_SECTION, "authType")
+            u = config.get_value(SLAGIT_SECTION, "authType")
             if u:
                 auth_type = u
     if auth_type is None:
         auth_type = input(PROMPT_AUTH_TYPE)
         if not auth_type:
             auth_type = DEFAULT_AUTH_TYPE
-    config.set_value(SLATEX_SECTION, "authType", auth_type)
+    config.set_value(SLAGIT_SECTION, "authType", auth_type)
 
     if username is None:
         if not ignore_saved_user_info:
-            u = cast(str, config.get_value(SLATEX_SECTION, "username"))
+            u = cast(str, config.get_value(SLAGIT_SECTION, "username"))
             if u:
                 username = u
     if username is None:
         username = input(PROMPT_USERNAME)
-    config.set_value(SLATEX_SECTION, "username", username)
+    config.set_value(SLAGIT_SECTION, "username", username)
 
     if password is None:
         if not ignore_saved_user_info:
